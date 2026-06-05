@@ -363,7 +363,7 @@ function Save-RunManifest {
 
 function Add-PreflightResult {
     param(
-        [Parameter(Mandatory)][System.Collections.Generic.List[object]]$Results,
+        [AllowEmptyCollection()][System.Collections.Generic.List[object]]$Results,
         [Parameter(Mandatory)][string]$Name,
         [ValidateSet('Pass', 'Warn', 'Block')]
         [string]$Status,

@@ -725,6 +725,10 @@ try {
     Remove-Item -LiteralPath $launcherTemp -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+if ($qaStateRoot -and (Test-Path -LiteralPath $qaStateRoot)) {
+    Remove-Item -LiteralPath $qaStateRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Write-Host ''
 if ($script:Failures -eq 0) {
     Write-Result 'PASS' 'Full non-destructive and mocked QA suite passed.' Green
