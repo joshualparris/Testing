@@ -1,0 +1,40 @@
+{
+  "ProfileName": "Minimal-Lab-Config",
+  "Description": "Minimal lab with Exchange Server SE on single server (DC and Mailbox on same machine)",
+  "CreatedDate": "2026-06-05T09:00:00Z",
+  "LastModified": "2026-06-05T09:00:00Z",
+  "Notes": "This profile is suitable for very small labs where DC and Exchange run on the same server. Not recommended for production testing.",
+  "LabEnvironment": {
+    "NetworkConfiguration": {
+      "StaticIp": "192.168.100.10",
+      "SubnetMask": "255.255.255.0",
+      "Gateway": "192.168.100.1",
+      "DomainControllerIp": "192.168.100.10"
+    },
+    "ActiveDirectory": {
+      "DomainName": "corp.local",
+      "ForestName": "corp.local",
+      "NetbiosName": "CORP",
+      "AdminPassword": "(will be prompted at runtime)"
+    }
+  },
+  "ExchangeConfiguration": {
+    "ExchangeEdition": "Exchange Server Subscription Edition",
+    "ExchangeIsoPath": "D:\\ExchangeSE-latest.iso",
+    "Organization": "MyOrg",
+    "InstallPath": "C:\\Program Files\\Microsoft\\Exchange Server\\V15",
+    "LogPath": "C:\\Program Files\\Microsoft\\Exchange Server\\V15\\Logging",
+    "DatabasePath": "C:\\ExchangeDatabase"
+  },
+  "MitigationConfiguration": {
+    "EomtSourceUrl": "https://aka.ms/exchange-onprem-mitigation-tool",
+    "AutoApplyEomt": true,
+    "CheckStatusBeforeEomt": true
+  },
+  "TestConfiguration": {
+    "SmtpTarget": "localhost",
+    "TestMailboxName": "admin",
+    "TestMailboxDomain": "corp.local",
+    "CveValidationOwaUrl": "https://localhost/owa"
+  }
+}

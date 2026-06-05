@@ -1,0 +1,39 @@
+{
+  "ProfileName": "Standard-Lab-Config",
+  "Description": "Standard single-forest, single-domain lab configuration with Exchange Server 2019",
+  "CreatedDate": "2026-06-05T09:00:00Z",
+  "LastModified": "2026-06-05T09:00:00Z",
+  "LabEnvironment": {
+    "NetworkConfiguration": {
+      "StaticIp": "192.168.100.20",
+      "SubnetMask": "255.255.255.0",
+      "Gateway": "192.168.100.1",
+      "DomainControllerIp": "192.168.100.10"
+    },
+    "ActiveDirectory": {
+      "DomainName": "mylab.local",
+      "ForestName": "mylab.local",
+      "NetbiosName": "MYLAB",
+      "AdminPassword": "(will be prompted at runtime)"
+    }
+  },
+  "ExchangeConfiguration": {
+    "ExchangeEdition": "Exchange Server 2019",
+    "ExchangeIsoPath": "D:\\Exchange2019.iso",
+    "Organization": "Contoso",
+    "InstallPath": "C:\\Program Files\\Microsoft\\Exchange Server\\V15",
+    "LogPath": "C:\\Program Files\\Microsoft\\Exchange Server\\V15\\Logging",
+    "DatabasePath": "D:\\ExchangeDatabase"
+  },
+  "MitigationConfiguration": {
+    "EomtSourceUrl": "https://aka.ms/exchange-onprem-mitigation-tool",
+    "AutoApplyEomt": true,
+    "CheckStatusBeforeEomt": true
+  },
+  "TestConfiguration": {
+    "SmtpTarget": "mail.mylab.local",
+    "TestMailboxName": "testuser",
+    "TestMailboxDomain": "mylab.local",
+    "CveValidationOwaUrl": "https://lab-ex01.mylab.local/owa"
+  }
+}

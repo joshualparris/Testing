@@ -1,0 +1,6 @@
+# Ignore transient logs and temporary QA artifacts
+*.log
+tmp_*.ps1
+# Ignore build artifacts
+bin/
+dist/

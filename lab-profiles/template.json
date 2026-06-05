@@ -1,0 +1,40 @@
+{
+  "ProfileName": "YOUR-PROFILE-NAME",
+  "Description": "Brief description of this lab configuration",
+  "CreatedDate": "2026-06-05T00:00:00Z",
+  "LastModified": "2026-06-05T00:00:00Z",
+  "Notes": "Optional notes about this lab configuration",
+  "LabEnvironment": {
+    "NetworkConfiguration": {
+      "StaticIp": "192.168.100.20",
+      "SubnetMask": "255.255.255.0",
+      "Gateway": "192.168.100.1",
+      "DomainControllerIp": "192.168.100.10"
+    },
+    "ActiveDirectory": {
+      "DomainName": "example.local",
+      "ForestName": "example.local",
+      "NetbiosName": "EXAMPLE",
+      "AdminPassword": "(will be prompted at runtime - do not store passwords in this file)"
+    }
+  },
+  "ExchangeConfiguration": {
+    "ExchangeEdition": "Exchange Server 2019|Exchange Server 2016|Exchange Server Subscription Edition",
+    "ExchangeIsoPath": "Path to mounted ISO or UNC share (e.g., D:\\Exchange2019.iso)",
+    "Organization": "Organization name for Exchange",
+    "InstallPath": "C:\\Program Files\\Microsoft\\Exchange Server\\V15",
+    "LogPath": "C:\\Program Files\\Microsoft\\Exchange Server\\V15\\Logging",
+    "DatabasePath": "D:\\ExchangeDatabase or other partition"
+  },
+  "MitigationConfiguration": {
+    "EomtSourceUrl": "https://aka.ms/exchange-onprem-mitigation-tool",
+    "AutoApplyEomt": true,
+    "CheckStatusBeforeEomt": true
+  },
+  "TestConfiguration": {
+    "SmtpTarget": "Exchange server FQDN or localhost",
+    "TestMailboxName": "test user mailbox name",
+    "TestMailboxDomain": "example.local",
+    "CveValidationOwaUrl": "https://exchange-server.example.local/owa"
+  }
+}
