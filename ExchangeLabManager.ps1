@@ -10,11 +10,17 @@
 
 [CmdletBinding()]
 param(
-    [switch]$NoRun
+    [switch]$NoRun,
+    [switch]$QAMode
 )
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
+# QA mode: when running under the test harness, enable a global auto-confirm flag
+if ($QAMode) {
+    $Global:ELM_AutoConfirm = $true
+}
 
 $script:Theme = @{
     Window     = [System.Drawing.Color]::FromArgb(22, 26, 32)
@@ -1512,18 +1518,39 @@ function Set-StaticNetwork {
     foreach ($addr in $current) {
         if ($addr.IPAddress -ne $ip) {
             & $Report "Removing previous IPv4 address $($addr.IPAddress)." 'Warn'
-            Remove-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $addr.IPAddress -Confirm:$false -ErrorAction SilentlyContinue
+            if ($Global:ELM_AutoConfirm) {
+                if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'Remove'; IPAddress = $addr.IPAddress; InterfaceAlias = $adapter.Name }) | Out-Null }
+                & $Report "Auto-confirm: recorded Remove-NetIPAddress $($addr.IPAddress) on $($adapter.Name)." 'Info'
+            } else {
+                Remove-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $addr.IPAddress -Confirm:$false -ErrorAction SilentlyContinue
+            }
         }
     }
 
     $existing = Get-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue
     if ($existing) {
-        Set-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -PrefixLength $prefix -ErrorAction Stop
+        if ($Global:ELM_AutoConfirm) {
+            if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'Set'; IPAddress = $ip; PrefixLength = $prefix; InterfaceAlias = $adapter.Name }) | Out-Null }
+            & $Report "Auto-confirm: recorded Set-NetIPAddress $ip/$prefix on $($adapter.Name)." 'Info'
+        } else {
+            Set-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -PrefixLength $prefix -ErrorAction Stop
+        }
     } else {
-        New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -PrefixLength $prefix -DefaultGateway $gateway -AddressFamily IPv4 -ErrorAction Stop | Out-Null
+        if ($Global:ELM_AutoConfirm) {
+            if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'New'; IPAddress = $ip; PrefixLength = $prefix; DefaultGateway = $gateway; InterfaceAlias = $adapter.Name }) | Out-Null }
+            & $Report "Auto-confirm: recorded New-NetIPAddress $ip/$prefix gateway $gateway on $($adapter.Name)." 'Info'
+        } else {
+            New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -PrefixLength $prefix -DefaultGateway $gateway -AddressFamily IPv4 -ErrorAction Stop | Out-Null
+        }
     }
-    Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses '127.0.0.1' -ErrorAction Stop
-    & $Report "Network applied: $ip/$prefix, gateway $gateway, DNS 127.0.0.1." 'Good'
+
+    if ($Global:ELM_AutoConfirm) {
+        if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'Dns'; InterfaceAlias = $adapter.Name; ServerAddresses = '127.0.0.1' }) | Out-Null }
+        & $Report "Auto-confirm: recorded Set-DnsClientServerAddress 127.0.0.1 on $($adapter.Name)." 'Info'
+    } else {
+        Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses '127.0.0.1' -ErrorAction Stop
+        & $Report "Network applied: $ip/$prefix, gateway $gateway, DNS 127.0.0.1." 'Good'
+    }
 }
 
 function Install-AdAndPromote {

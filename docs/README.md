@@ -61,7 +61,7 @@ For broader coverage, run the full mocked QA suite:
 .\qa-full-tests.ps1
 ```
 
-The full suite checks the launchers, package files, helper functions, repeated form construction, button wiring, task success/failure behavior, process logging, Exchange setup command construction, mocked network/AD DS/EOMT/IIS/SMTP operation logic, and CVE validation helpers. Add `-RunUiLoop` to briefly show the GUI and cycle every tab automatically.
+The full suite checks the launchers, package files, helper functions, repeated form construction, button wiring, task success/failure behavior, profile/manifest/checkpoint persistence, cleanup preview, process logging, Exchange setup command construction, mocked network/AD DS/EOMT/IIS/SMTP operation logic, and CVE validation helpers. Add `-RunUiLoop` to briefly show the GUI and cycle every tab automatically.
 
 The only thing this suite intentionally does not do is execute irreversible lab operations. Test those final live operations only inside a disposable, isolated Windows Server Exchange lab VM.
 
@@ -69,7 +69,9 @@ The only thing this suite intentionally does not do is execute irreversible lab 
 
 - `preflight-readiness-check.ps1` - runs a readiness validation check on the host or lab VM before the GUI is launched. This helper is intended for use within a Windows Server lab VM and may report warnings on client OS environments.
 - `lab-cleanup-helper.ps1` - inspects and optionally removes temporary lab artifacts, with optional network/IIS reset in full mode.
-- `lab-profiles/` - contains JSON lab profile templates to capture reusable lab configuration settings.
+- `%LOCALAPPDATA%\ExchangeLabManager\profiles` - stores named JSON lab profiles created from the GUI.
+- `%LOCALAPPDATA%\ExchangeLabManager\manifests` - stores run manifests written by the GUI task runner and manual manifest export.
+- `%LOCALAPPDATA%\ExchangeLabManager\checkpoints` - stores the current resumable lab checkpoint state.
 
 If you want to run each step manually:
 
@@ -137,31 +139,31 @@ These five improvements would make Exchange Lab Manager safer, easier to repeat,
    - Save and reload named lab configurations, including static IP settings, domain inputs, Exchange ISO paths, EOMT paths, SMTP targets, and test mailbox details.
    - Store profiles as JSON so the GUI and future automation entry points can share the same configuration format.
    - Export a run manifest with each lab attempt so the exact inputs used for a build or mitigation validation can be reviewed later.
-   - *Status: Not yet implemented*
+   - *Status: Implemented in the Lab Control & Evidence tab. Profiles, automatic task manifests, and manual manifest exports are written as JSON under `%LOCALAPPDATA%\ExchangeLabManager`.*
 
 2. **Preflight readiness checks**
    - Add a dedicated readiness step before network, AD DS, Exchange, or mitigation actions run.
    - Check elevation, Windows Server version, required features, disk space, pending reboot state, network adapter selection, DNS state, and whether the VM appears isolated.
    - Show blocking failures separately from warnings so users can fix risky setup issues before starting long-running changes.
-   - *Status: Manual checklist available in [PREFLIGHT-CHECKLIST.md](PREFLIGHT-CHECKLIST.md). GUI feature not yet implemented.*
+   - *Status: Implemented in the Lab Control & Evidence tab. The GUI reports blocking failures separately from warnings and also captures preflight results in full evidence bundles.*
 
 3. **Guided workflow and resumable checkpoints**
    - Track which lab milestones are complete, such as network configured, AD DS promoted, reboot completed, Exchange AD prepared, Exchange installed, and mitigation checked.
    - Disable or warn on actions that are out of sequence, while still allowing advanced users to override when they know the lab state is valid.
    - Persist checkpoint state after each major step so the GUI can resume cleanly after required restarts.
-   - *Status: Not yet implemented*
+   - *Status: Implemented. Completed task milestones are persisted to `%LOCALAPPDATA%\ExchangeLabManager\checkpoints\current-checkpoint.json`, and the GUI can save, load, reset, and resume checkpoint status.*
 
 4. **Evidence bundle export**
    - Let users export a timestamped ZIP containing tab logs, build logs, mitigation status output, selected configuration metadata, validation message details, and tool versions.
    - Redact secrets and passwords before writing the bundle.
    - Include enough evidence to compare lab runs and confirm which mitigations or validation checks were actually performed.
-   - *Status: Partial - CVE validation tab exports individual evidence files. Comprehensive bundle export not yet implemented.*
+   - *Status: Implemented. The GUI can export a comprehensive timestamped ZIP with metadata, current inputs, checkpoint state, run manifest, preflight results, UI logs, and CVE/Exchange validation snapshots.*
 
 5. **Rollback and cleanup tools**
    - Add safer cleanup actions for temporary downloads, generated test payload files, local mitigation scripts, and lab-only IIS rewrite/CSP rules.
    - Provide network restore helpers for reverting adapter IP/DNS settings after testing.
    - Use strong confirmation prompts and checkpoint reminders before destructive or hard-to-reverse actions such as AD DS promotion and Exchange installation.
-   - *Status: Not yet implemented*
+   - *Status: Implemented for safe temporary-artifact preview/cleanup in the GUI. The separate `lab-cleanup-helper.ps1` still provides the stronger full cleanup path with network/IIS reset prompts for isolated lab VMs.*
 
 ---
 

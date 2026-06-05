@@ -13,9 +13,9 @@ This report approves the app for isolated lab validation workflows only. It does
 - Script parsing for package PowerShell files.
 - GUI loading in `-NoRun` mode.
 - Helper logic for subnet masks, gateway derivation, argument quoting, Exchange setup path validation, and SMTP input validation.
-- WinForms construction for all five tabs.
+- WinForms construction for all six tabs.
 - Default control values and visible button labels.
-- Optional visible UI event loop that cycles through all five tabs.
+- Optional visible UI event loop that cycles through all six tabs.
 
 ### Full Mocked QA Suite
 
@@ -23,6 +23,11 @@ This report approves the app for isolated lab validation workflows only. It does
 - Form construction and repeated construction reset behavior.
 - Button wiring for all task buttons.
 - Task success, failure, progress, logging, status pill, and button re-enable behavior.
+- JSON lab profile save/load behavior.
+- Run manifest export behavior.
+- Resumable checkpoint update/reset behavior.
+- GUI cleanup preview behavior.
+- Comprehensive evidence bundle creation.
 - Process logging and non-zero process exit handling.
 - Exchange setup command construction.
 - Mocked network, AD DS, Exchange setup, EOMT, IIS mitigation, SMTP, CSP, and evidence export logic.
@@ -33,6 +38,12 @@ This report approves the app for isolated lab validation workflows only. It does
   - `Verify-OwaCspHeader`
   - `Export-CveEvidence`
 - Launcher failure handling when the GUI script is missing.
+
+### Implemented Roadmap Coverage
+
+- Lab Control & Evidence tab for profiles, manifests, checkpoints, preflight, full evidence export, and cleanup preview.
+- Automatic checkpoint and run-manifest recording after successful task-runner operations.
+- Full evidence ZIP export containing app metadata, current inputs, checkpoint state, embedded run manifest, preflight results, UI logs, and CVE/Exchange validation snapshots.
 
 ## Bugs Found and Fixed
 
@@ -86,7 +97,7 @@ The following operations are intentionally not run by local QA and must only be 
 
 1. Keep `qa-smoke-tests.ps1` and `qa-full-tests.ps1` as the default pre-change and post-change validation commands.
 2. Run the manual lab-only validation list after building a fresh isolated Exchange VM.
-3. Treat the roadmap items in `docs/README.md` as future product work, not as current blockers for the lab prototype.
+3. Treat live AD DS, Exchange, EOMT, IIS, SMTP, and OWA checks as manual isolated-lab validation, even though the GUI scaffolding and mocked QA coverage are now in place.
 
 Report generated: 2026-06-05  
 Application: Exchange Lab Manager  

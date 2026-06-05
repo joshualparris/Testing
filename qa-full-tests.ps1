@@ -18,6 +18,29 @@ $ErrorActionPreference = 'Stop'
 $WorkspaceRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location -LiteralPath $WorkspaceRoot
 
+# QA initializer: enable auto-confirm for destructive operations during automated tests
+# This variable is intentionally a global that is only set by QA harnesses, not by normal GUI usage.
+$Global:ELM_AutoConfirm = $true
+
+# Verify that launching the GUI in a fresh process without QAMode does NOT enable auto-confirm
+$psExePath = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+if (-not $psExePath) { $psExePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe' }
+$tmpOut = Join-Path $env:TEMP ('elm_qa_check_{0}.txt' -f ([guid]::NewGuid()))
+$scriptPathEscaped = (Join-Path $WorkspaceRoot 'ExchangeLabManager.ps1')
+$inner = ". '" + $scriptPathEscaped + "' -NoRun; if ((Get-Variable -Name 'Global:ELM_AutoConfirm' -Scope Global -ErrorAction SilentlyContinue).Value) { Write-Output 'TRUE' } else { Write-Output 'FALSE' }"
+$bytes = [System.Text.Encoding]::Unicode.GetBytes($inner)
+$encoded = [Convert]::ToBase64String($bytes)
+Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',$encoded -NoNewWindow -Wait -RedirectStandardOutput $tmpOut
+$freshProcessAutoConfirm = (Get-Content -LiteralPath $tmpOut -Raw).Trim()
+Remove-Item -LiteralPath $tmpOut -ErrorAction SilentlyContinue
+
+$innerQAMode = ". '$scriptPathEscaped' -NoRun -QAMode; if ((Get-Variable -Name 'Global:ELM_AutoConfirm' -Scope Global -ErrorAction SilentlyContinue).Value -and (Show-ConfirmationDialog -Title 'QA AutoConfirm' -Message 'Auto-confirm check' -AutoConfirm:$false)) { Write-Output 'TRUE' } else { Write-Output 'FALSE' }"
+$bytesQAMode = [System.Text.Encoding]::Unicode.GetBytes($innerQAMode)
+$encodedQAMode = [Convert]::ToBase64String($bytesQAMode)
+Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',$encodedQAMode -NoNewWindow -Wait -RedirectStandardOutput $tmpOut
+$qaProcessAutoConfirm = (Get-Content -LiteralPath $tmpOut -Raw).Trim()
+Remove-Item -LiteralPath $tmpOut -ErrorAction SilentlyContinue
+
 if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (-not (Test-Path -LiteralPath $powershell -PathType Leaf)) {
@@ -128,6 +151,9 @@ function Get-ButtonByText {
     return $button
 }
 
+Assert-Equal -Actual $freshProcessAutoConfirm -Expected 'FALSE' -Message 'GUI launched normally does not enable auto-confirm'
+Assert-Equal -Actual $qaProcessAutoConfirm -Expected 'TRUE' -Message 'GUI launched with QAMode enables auto-confirm'
+
 function Invoke-ButtonClick {
     param([Parameter(Mandatory)][System.Windows.Forms.Button]$Button)
     $bindingFlags = [System.Reflection.BindingFlags]::Instance -bor [System.Reflection.BindingFlags]::NonPublic
@@ -235,6 +261,17 @@ Assert-True -Condition ($pipelineText -match 'Refusing to remove directory outsi
 Write-Host ''
 Write-Host 'Application load and helper logic' -ForegroundColor Cyan
 $qaStateRoot = Join-Path $env:TEMP ('ExchangeLabManager-StateQA-{0}' -f ([guid]::NewGuid()))
+$psExePath = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+if (-not $psExePath) { $psExePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe' }
+$tmpOut = Join-Path $env:TEMP ('elm_qa_check_{0}.txt' -f ([guid]::NewGuid()))
+$checkScript = Join-Path $env:TEMP ('elm_qa_check_{0}.ps1' -f ([guid]::NewGuid()))
+$scriptPath = (Join-Path $WorkspaceRoot 'ExchangeLabManager.ps1')
+$scriptBody = ". '$scriptPath' -NoRun`nif (`$Global:ELM_AutoConfirm) { Write-Output 'TRUE' } else { Write-Output 'FALSE' }"
+$scriptBody | Set-Content -LiteralPath $checkScript -Encoding UTF8
+Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',$checkScript -NoNewWindow -Wait -RedirectStandardOutput $tmpOut
+$check = (Get-Content -LiteralPath $tmpOut -Raw).Trim()
+Remove-Item -LiteralPath $tmpOut,$checkScript -ErrorAction SilentlyContinue
+Assert-Equal -Actual $check -Expected 'FALSE' -Message 'GUI launched normally does not enable auto-confirm'
 . (Join-Path $WorkspaceRoot 'ExchangeLabManager.ps1') -NoRun
 $script:LabDataRoot = $qaStateRoot
 Assert-True -Condition ([bool](Get-Command New-MainForm -ErrorAction SilentlyContinue)) -Message 'Application loads in NoRun mode'
@@ -255,7 +292,7 @@ $form2 = $null
 try {
     $form = New-MainForm
     $tabControl = $form.Controls | Where-Object { $_ -is [System.Windows.Forms.TabControl] } | Select-Object -First 1
-    $expectedTabs = @('Lab Control & Evidence','System & Network Setup','Exchange Prep & Install','Mitigation & EOMT','Automated XSS Test','CVE-2026-42897 Validation')
+    $expectedTabs = @('Profiles & Preflight','System & Network Setup','Exchange Prep & Install','Mitigation & EOMT','Benign HTML Validation Test','CVE-2026-42897 Validation')
     Assert-Equal -Actual $form.Text -Expected 'Exchange Lab & Security Mitigation Manager' -Message 'Main form title is correct'
     Assert-Equal -Actual $tabControl.TabPages.Count -Expected 6 -Message 'Main form has six tabs'
     Assert-Equal -Actual ((@($tabControl.TabPages | ForEach-Object { $_.Text })) -join '|') -Expected ($expectedTabs -join '|') -Message 'Tab names match expected workflow'
@@ -301,8 +338,8 @@ try {
     $script:Ui.Domain.Text = 'contoso.lab'
     $script:Ui.ExchangePath.Text = 'E:\Exchange ISO'
     $script:Ui.Eomt.Text = 'C:\Tools\EOMT.ps1'
-    $script:Ui.Attacker.Text = 'red@mylab.local'
-    $script:Ui.Victim.Text = 'blue@mylab.local'
+    $script:Ui.Sender.Text = 'red@mylab.local'
+    $script:Ui.Recipient.Text = 'blue@mylab.local'
     $script:Ui.Smtp.Text = '10.20.30.40'
     $script:Ui.Payload.SelectedIndex = 2
     $script:Ui.OwaUrl.Text = 'https://lab-ex02.exchange-lab.test/owa'
@@ -324,7 +361,7 @@ try {
         'Launch Exchange Installer Syntax',
         'Download & Apply EOMT Mitigation',
         'Check Status (Get-Mitigation M2.1.x)',
-        'Fire Test Email',
+        'Send HTML Validation Mail',
         'Check Exchange Build',
         'Check EM Service',
         'Check Mitigation State',
@@ -336,7 +373,7 @@ try {
     }
 
     Assert-Equal -Actual $script:StartCalls.Count -Expected 22 -Message 'All task buttons except browse buttons dispatch Start-LabTask'
-    Assert-Equal -Actual (($script:StartCalls | ForEach-Object { $_.Name }) -join '|') -Expected 'Profile load|Profile save|Run manifest export|Preflight check|Full evidence export|Checkpoint save|Checkpoint load|Checkpoint reset|Cleanup preview|Temp cleanup|Network setup|AD DS promotion|Exchange AD prep|Exchange install|EOMT mitigation|Mitigation status|XSS email test|Exchange build check|EM service check|Mitigation state check|CSP header verification|Evidence export' -Message 'Action buttons dispatch expected task names'
+    Assert-Equal -Actual (($script:StartCalls | ForEach-Object { $_.Name }) -join '|') -Expected 'Profile load|Profile save|Run manifest export|Preflight check|Full evidence export|Checkpoint save|Checkpoint load|Checkpoint reset|Cleanup preview|Temp cleanup|Network setup|AD DS promotion|Exchange AD prep|Exchange install|EOMT mitigation|Mitigation status|HTML validation test|Exchange build check|EM service check|Mitigation state check|CSP header verification|Evidence export' -Message 'Action buttons dispatch expected task names'
 
     $profileLoadCall = $script:StartCalls | Where-Object { $_.Name -eq 'Profile load' } | Select-Object -First 1
     Assert-Equal -Actual $profileLoadCall.Data.Profile -Expected 'qa-profile' -Message 'Profile load passes profile name'
@@ -366,9 +403,9 @@ try {
     $mitigationStatusCall = $script:StartCalls | Where-Object { $_.Name -eq 'Mitigation status' } | Select-Object -First 1
     Assert-Equal -Actual $mitigationStatusCall.Data.Count -Expected 0 -Message 'Mitigation status button passes empty data'
 
-    $xssCall = $script:StartCalls | Where-Object { $_.Name -eq 'XSS email test' } | Select-Object -First 1
-    Assert-Equal -Actual $xssCall.Data.Sender -Expected 'red@mylab.local' -Message 'XSS button passes sender'
-    Assert-Equal -Actual $xssCall.Data.Payload -Expected '<a href="javascript:alert(''Link_Control_Payload'')">Lab validation link</a>' -Message 'XSS button passes selected payload'
+    $htmlValidationCall = $script:StartCalls | Where-Object { $_.Name -eq 'HTML validation test' } | Select-Object -First 1
+    Assert-Equal -Actual $htmlValidationCall.Data.Sender -Expected 'red@mylab.local' -Message 'HTML validation button passes sender'
+    Assert-Equal -Actual $htmlValidationCall.Data.Payload -Expected '<a href="javascript:alert(''Link_Control_Payload'')">Lab validation link</a>' -Message 'HTML validation button passes selected payload'
 
     $buildCheckCall = $script:StartCalls | Where-Object { $_.Name -eq 'Exchange build check' } | Select-Object -First 1
     Assert-Equal -Actual $buildCheckCall.Data.Count -Expected 0 -Message 'Exchange build check passes empty data'
@@ -402,8 +439,8 @@ try {
     $script:Ui.Domain.Text = 'qa.lab'
     $script:Ui.ExchangePath.Text = 'E:\QA Exchange'
     $script:Ui.Eomt.Text = 'C:\QA\EOMT.ps1'
-    $script:Ui.Attacker.Text = 'qa-attacker@qa.lab'
-    $script:Ui.Victim.Text = 'qa-victim@qa.lab'
+    $script:Ui.Sender.Text = 'qa-sender@qa.lab'
+    $script:Ui.Recipient.Text = 'qa-recipient@qa.lab'
     $script:Ui.Smtp.Text = '172.16.10.21'
     $script:Ui.Payload.SelectedIndex = 1
     $script:Ui.OwaUrl.Text = 'https://qa-ex01.qa.lab/owa'
@@ -613,9 +650,9 @@ Set-MockFunction -Name Send-MailMessage -Body {
     $script:MailOps.Add([pscustomobject]@{ From = $From; To = $To; Subject = $Subject; Body = $Body; BodyAsHtml = [bool]$BodyAsHtml; SmtpServer = $SmtpServer }) | Out-Null
 }
 $reports = New-ReportList
-Send-XssMail -Data @{ Sender = 'attacker@mylab.local'; Recipient = 'victim@mylab.local'; Smtp = '192.168.100.10'; Payload = '<b>payload</b>' } -Report (New-ReportBlock $reports)
-Assert-Equal -Actual $script:MailOps.Count -Expected 1 -Message 'XSS test sends one SMTP message through mocked sender'
-Assert-Equal -Actual $script:MailOps[0].BodyAsHtml -Expected $true -Message 'XSS test sends HTML mail'
+Send-HtmlValidationMail -Data @{ Sender = 'sender@mylab.local'; Recipient = 'recipient@mylab.local'; Smtp = '192.168.100.10'; Payload = '<b>payload</b>' } -Report (New-ReportBlock $reports)
+Assert-Equal -Actual $script:MailOps.Count -Expected 1 -Message 'HTML validation test sends one SMTP message through mocked sender'
+Assert-Equal -Actual $script:MailOps[0].BodyAsHtml -Expected $true -Message 'HTML validation test sends HTML mail'
 Assert-Like -Actual $script:MailOps[0].Body -Pattern '*<b>payload</b>*' -Message 'XSS test embeds selected payload'
 Assert-ThrowsLike -ScriptBlock {
     Send-XssMail -Data @{ Sender = ''; Recipient = 'victim@mylab.local'; Smtp = '192.168.100.10'; Payload = '<b>payload</b>' } -Report { }

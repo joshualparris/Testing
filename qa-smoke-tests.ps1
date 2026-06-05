@@ -118,7 +118,7 @@ Assert-Equal -Actual (Format-Arg 'simple') -Expected 'simple' -Message 'Simple p
 Assert-Equal -Actual (Format-Arg 'C:\Lab Path\Setup.exe') -Expected '"C:\Lab Path\Setup.exe"' -Message 'Process argument with spaces is quoted'
 Assert-ThrowsLike -ScriptBlock { Convert-MaskToPrefix '255.0.255.0' } -ExpectedText 'not contiguous' -Message 'Invalid subnet mask is rejected'
 Assert-ThrowsLike -ScriptBlock { Invoke-ExchangeSetup -ExchangePath (Join-Path $env:TEMP 'missing-exchange-iso') -Arguments @('/help') -Report { } } -ExpectedText 'Setup.exe was not found' -Message 'Missing Exchange setup path fails safely before process launch'
-Assert-ThrowsLike -ScriptBlock { Send-XssMail -Data @{ Sender = ''; Recipient = 'victim@mylab.local'; Smtp = '192.168.100.10'; Payload = '<b>test</b>' } -Report { } } -ExpectedText 'Sender is required' -Message 'SMTP validation rejects missing sender before sending mail'
+Assert-ThrowsLike -ScriptBlock { Send-HtmlValidationMail -Data @{ Sender = ''; Recipient = 'recipient@mylab.local'; Smtp = '192.168.100.10'; Payload = '<b>test</b>' } -Report { } } -ExpectedText 'Sender is required' -Message 'SMTP validation rejects missing sender before sending mail'
 
 Write-Host ''
 Write-Host 'WinForms construction' -ForegroundColor Cyan
@@ -131,7 +131,7 @@ try {
     Assert-True -Condition ($null -ne $tabControl) -Message 'Main tab control exists'
     Assert-Equal -Actual $tabControl.TabPages.Count -Expected 6 -Message 'All six operational tabs are present'
 
-    $expectedTabs = @('Lab Control & Evidence','System & Network Setup','Exchange Prep & Install','Mitigation & EOMT','Automated XSS Test','CVE-2026-42897 Validation')
+    $expectedTabs = @('Profiles & Preflight','System & Network Setup','Exchange Prep & Install','Mitigation & EOMT','Benign HTML Validation Test','CVE-2026-42897 Validation')
     $actualTabs = @($tabControl.TabPages | ForEach-Object { $_.Text })
     Assert-Equal -Actual ($actualTabs -join '|') -Expected ($expectedTabs -join '|') -Message 'Tab names match expected workflow'
 

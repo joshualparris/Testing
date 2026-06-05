@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Josh AD, VirtualBox and Exchange Lab Roadmap</title>
+<style>
+:root {
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --ink: #172033;
+  --muted: #5f6b7a;
+  --accent: #246bfe;
+  --accent2: #0f766e;
+  --border: #d8dee9;
+  --code: #101827;
+  --codeText: #e8eefc;
+  --good: #0f7b3f;
+  --warn: #a15c00;
+  --bad: #a61b1b;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: linear-gradient(135deg, #edf4ff 0%, #f7f7fb 45%, #fff7ee 100%);
+  color: var(--ink);
+  line-height: 1.55;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); min-height: 100vh; }
+aside {
+  position: sticky; top: 0; height: 100vh; overflow: auto;
+  padding: 20px 18px; background: rgba(255,255,255,0.88); border-right: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+.brand { font-weight: 800; font-size: 1.05rem; color: #0b1b39; margin-bottom: 4px; }
+.subtitle { color: var(--muted); font-size: .88rem; margin-bottom: 14px; }
+.search { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; margin: 10px 0 14px; }
+.nav a { display: block; padding: 8px 10px; color: #23324b; border-radius: 10px; font-size: .92rem; }
+.nav a:hover { background: #edf4ff; text-decoration: none; }
+main { padding: 32px; }
+.doc { max-width: 1020px; margin: 0 auto; }
+.hero {
+  background: linear-gradient(135deg, #143a7b, #0f766e);
+  color: white; border-radius: 24px; padding: 36px; margin-bottom: 24px;
+  box-shadow: 0 22px 55px rgba(16,24,40,.17);
+}
+.hero h1 { margin: 0 0 10px; font-size: 2.25rem; line-height: 1.1; }
+.hero p { margin: 0; color: #eaf1ff; max-width: 850px; }
+.meta { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
+.pill { border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 6px 10px; font-size: .85rem; }
+.toolbar { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { border: 0; background: #fff; color: #123; padding: 9px 13px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+.toc-card, .chapter {
+  background: rgba(255,255,255,.95); border: 1px solid var(--border); border-radius: 20px;
+  padding: 26px; margin-bottom: 22px; box-shadow: 0 8px 22px rgba(16,24,40,.07);
+}
+.chapter h2, .toc-card h2 { margin-top: 0; font-size: 1.75rem; color: #0b1b39; }
+.chapter h3 { margin-top: 1.5rem; color: #102a56; }
+.toc-list { columns: 2; column-gap: 40px; }
+.toc-list li { break-inside: avoid; margin: 0 0 7px; }
+.toplink { float: right; font-size: .82rem; color: var(--muted); }
+.callout { border-left: 5px solid var(--accent); background: #edf4ff; padding: 12px 16px; border-radius: 12px; margin: 16px 0; }
+.callout p { margin: 5px 0 0; }
+.callout.warn { border-color: #f59e0b; background: #fff7e6; }
+.callout.safe { border-color: #0f766e; background: #e9fbf8; }
+.callout.tip { border-color: #246bfe; background: #edf4ff; }
+.badge { display: inline-block; color: white; padding: 3px 8px; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+.badge.good { background: var(--good); }
+.badge.warn { background: var(--warn); }
+.badge.bad { background: var(--bad); }
+.table-wrap { overflow-x: auto; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; background: white; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+th, td { border-bottom: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: top; }
+th { background: #f1f5fb; color: #102a56; }
+tr:last-child td { border-bottom: 0; }
+pre { position: relative; background: var(--code); color: var(--codeText); border-radius: 14px; padding: 18px; overflow-x: auto; margin: 14px 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+code { font-family: Consolas, "Cascadia Code", "Courier New", monospace; font-size: .92rem; }
+p code, li code, td code { background: #eef2f7; padding: 2px 5px; border-radius: 5px; color: #172033; }
+.copy { position: absolute; top: 8px; right: 8px; border: 0; border-radius: 8px; padding: 5px 8px; cursor: pointer; background: #ffffff22; color: white; }
+.url { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.footer { color: var(--muted); text-align: center; padding: 30px; font-size: .88rem; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  aside { position: static; height: auto; }
+  .toc-list { columns: 1; }
+  main { padding: 16px; }
+}
+@media print {
+  @page { size: A4; margin: 18mm 15mm; @bottom-center { content: "Josh AD and VirtualBox Lab Roadmap - page " counter(page) " of " counter(pages); font-size: 9px; color: #667085; } }
+  body { background: white; color: #111827; font-size: 10.5pt; }
+  .layout { display: block; }
+  aside, .toolbar, .copy, .toplink { display: none !important; }
+  main { padding: 0; }
+  .doc { max-width: none; }
+  .hero { border-radius: 0; box-shadow: none; padding: 18mm 10mm; page-break-after: always; }
+  .hero h1 { font-size: 26pt; }
+  .toc-card, .chapter { box-shadow: none; border: 0; padding: 0; margin: 0 0 12mm; page-break-inside: auto; }
+  .chapter { page-break-before: always; }
+  h2 { string-set: heading content(); page-break-after: avoid; }
+  h3 { page-break-after: avoid; }
+  pre { white-space: pre-wrap; word-break: break-word; border-radius: 6px; background: #f1f5f9; color: #111827; border: 1px solid #d8dee9; box-shadow: none; }
+  table { page-break-inside: auto; font-size: 9.5pt; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  .toc-list { columns: 2; }
+  a { color: #0f3f8f; }
+}
+</style>
+</head>
+<body id="top">
+<div class="layout">
+<aside>
+  <div class="brand">Josh Lab Manual</div>
+  <div class="subtitle">AD DS + VirtualBox + Client Join + Exchange defensive planning</div>
+  <input id="search" class="search" placeholder="Search chapters...">
+  <nav class="nav"><a href="#how-to-use-this-booklet" data-title="how to use this booklet">How to use this booklet</a>
+<a href="#1-executive-summary-and-current-status" data-title="1. executive summary and current status">1. Executive summary and current status</a>
+<a href="#2-safety-ethics-and-lab-boundary" data-title="2. safety, ethics, and lab boundary">2. Safety, ethics, and lab boundary</a>
+<a href="#3-lab-roadmap" data-title="3. lab roadmap">3. Lab roadmap</a>
+<a href="#4-naming-ip-plan-and-vm-sizing" data-title="4. naming, ip plan, and vm sizing">4. Naming, IP plan, and VM sizing</a>
+<a href="#5-virtualbox-networking-scenarios" data-title="5. virtualbox networking scenarios">5. VirtualBox networking scenarios</a>
+<a href="#6-build-and-confirm-dc01" data-title="6. build and confirm dc01">6. Build and confirm DC01</a>
+<a href="#7-static-ip-and-dns-setup" data-title="7. static ip and dns setup">7. Static IP and DNS setup</a>
+<a href="#8-dc-health-checks-and-how-to-read-them" data-title="8. dc health checks and how to read them">8. DC health checks and how to read them</a>
+<a href="#9-time-service-and-kerberos" data-title="9. time service and kerberos">9. Time service and Kerberos</a>
+<a href="#10-create-users-groups-and-ous" data-title="10. create users, groups, and ous">10. Create users, groups, and OUs</a>
+<a href="#11-build-client01-with-windows-10-pro" data-title="11. build client01 with windows 10 pro">11. Build CLIENT01 with Windows 10 Pro</a>
+<a href="#12-configure-client01-networking" data-title="12. configure client01 networking">12. Configure CLIENT01 networking</a>
+<a href="#13-join-client01-to-joshlab" data-title="13. join client01 to josh.lab">13. Join CLIENT01 to josh.lab</a>
+<a href="#14-remote-into-client01-from-the-probook" data-title="14. remote into client01 from the probook">14. Remote into CLIENT01 from the ProBook</a>
+<a href="#15-first-practical-ad-tests" data-title="15. first practical ad tests">15. First practical AD tests</a>
+<a href="#16-group-policy-learning-path" data-title="16. group policy learning path">16. Group Policy learning path</a>
+<a href="#17-troubleshooting-decision-trees" data-title="17. troubleshooting decision trees">17. Troubleshooting decision trees</a>
+<a href="#18-exchange-and-owa-what-your-lab-does-and-does-not-have" data-title="18. exchange and owa: what your lab does and does not have">18. Exchange and OWA: what your lab does and does not have</a>
+<a href="#19-safe-exchange-planning-guide" data-title="19. safe exchange planning guide">19. Safe Exchange planning guide</a>
+<a href="#20-owa-cve-defensive-validation-only" data-title="20. owa / cve defensive validation only">20. OWA / CVE defensive validation only</a>
+<a href="#21-evidence-collection-and-reporting" data-title="21. evidence collection and reporting">21. Evidence collection and reporting</a>
+<a href="#22-snapshot-and-rollback-strategy" data-title="22. snapshot and rollback strategy">22. Snapshot and rollback strategy</a>
+<a href="#23-security-hardening-learning-path" data-title="23. security hardening learning path">23. Security hardening learning path</a>
+<a href="#24-command-library" data-title="24. command library">24. Command library</a>
+<a href="#25-glossary" data-title="25. glossary">25. Glossary</a>
+<a href="#26-final-recommended-next-actions" data-title="26. final recommended next actions">26. Final recommended next actions</a>
+<a href="#references" data-title="references">References</a></nav>
+</aside>
+<main>
+<div class="doc">
+<header class="hero">
+<h1>Active Directory, VirtualBox and Exchange Defensive Lab Roadmap</h1>
+<p>A practical reference manual for your Windows Server 2022 <code>josh.lab</code> lab: what already works, what to build next, which PowerShell commands to use, how to choose VirtualBox networking, how to use the ProBook safely as a remote console, and when to postpone Exchange/OWA.</p>
+<div class="meta">
+<span class="pill">Prepared for Josh Parris</span>
+<span class="pill">Date: 5 June 2026</span>
+<span class="pill">Scope: defensive lab only</span>
+<span class="pill">Format: PDF + navigable HTML</span>
+</div>
+<div class="toolbar"><button class="btn" onclick="window.print()">Print / Save as PDF</button><a class="btn" href="#contents">Open contents</a></div>
+</header>
+<section class="toc-card" id="contents"><h2>Contents</h2><ol class="toc-list">
+<li><a href="#how-to-use-this-booklet">How to use this booklet</a></li>
+<li><a href="#1-executive-summary-and-current-status">1. Executive summary and current status</a></li>
+<li><a href="#2-safety-ethics-and-lab-boundary">2. Safety, ethics, and lab boundary</a></li>
+<li><a href="#3-lab-roadmap">3. Lab roadmap</a></li>
+<li><a href="#4-naming-ip-plan-and-vm-sizing">4. Naming, IP plan, and VM sizing</a></li>
+<li><a href="#5-virtualbox-networking-scenarios">5. VirtualBox networking scenarios</a></li>
+<li><a href="#6-build-and-confirm-dc01">6. Build and confirm DC01</a></li>
+<li><a href="#7-static-ip-and-dns-setup">7. Static IP and DNS setup</a></li>
+<li><a href="#8-dc-health-checks-and-how-to-read-them">8. DC health checks and how to read them</a></li>
+<li><a href="#9-time-service-and-kerberos">9. Time service and Kerberos</a></li>
+<li><a href="#10-create-users-groups-and-ous">10. Create users, groups, and OUs</a></li>
+<li><a href="#11-build-client01-with-windows-10-pro">11. Build CLIENT01 with Windows 10 Pro</a></li>
+<li><a href="#12-configure-client01-networking">12. Configure CLIENT01 networking</a></li>
+<li><a href="#13-join-client01-to-joshlab">13. Join CLIENT01 to josh.lab</a></li>
+<li><a href="#14-remote-into-client01-from-the-probook">14. Remote into CLIENT01 from the ProBook</a></li>
+<li><a href="#15-first-practical-ad-tests">15. First practical AD tests</a></li>
+<li><a href="#16-group-policy-learning-path">16. Group Policy learning path</a></li>
+<li><a href="#17-troubleshooting-decision-trees">17. Troubleshooting decision trees</a></li>
+<li><a href="#18-exchange-and-owa-what-your-lab-does-and-does-not-have">18. Exchange and OWA: what your lab does and does not have</a></li>
+<li><a href="#19-safe-exchange-planning-guide">19. Safe Exchange planning guide</a></li>
+<li><a href="#20-owa-cve-defensive-validation-only">20. OWA / CVE defensive validation only</a></li>
+<li><a href="#21-evidence-collection-and-reporting">21. Evidence collection and reporting</a></li>
+<li><a href="#22-snapshot-and-rollback-strategy">22. Snapshot and rollback strategy</a></li>
+<li><a href="#23-security-hardening-learning-path">23. Security hardening learning path</a></li>
+<li><a href="#24-command-library">24. Command library</a></li>
+<li><a href="#25-glossary">25. Glossary</a></li>
+<li><a href="#26-final-recommended-next-actions">26. Final recommended next actions</a></li>
+<li><a href="#references">References</a></li>
+</ol></section>
+<section class="chapter" id="how-to-use-this-booklet"><a class="toplink" href="#top">Back to top</a><h2>How to use this booklet</h2>
+<p>This booklet is a practical reference for your Windows Server 2022 Active Directory lab in VirtualBox. It turns our chat into a staged roadmap you can actually follow: first prove AD, DNS, logon, Group Policy and shares; then, only later, consider a separate Exchange/OWA defensive lab.</p>
+<div class="callout safe"><strong>Safety boundary</strong><p>This guide does not include exploit payloads, malicious emails, or instructions to reproduce an OWA zero-day. The Exchange/CVE material is limited to defensive validation, logging, mitigation checks, and lab-safe learning.</p></div>
+<h3>Recommended reading pattern</h3>
+<ol>
+<li>Read chapters 1-3 before touching the lab.</li>
+<li>Use chapters 4-8 while building the client VM and joining the domain.</li>
+<li>Use chapters 9-11 when something breaks.</li>
+<li>Leave Exchange chapters until the AD foundation is working and you have enough hardware capacity.</li>
+</ol>
+<h3>Your current lab conclusion</h3>
+<p>Your server is already functioning as a domain controller for <code>josh.lab</code>. ADWS, DNS, KDC and Netlogon were running. DNS resolved <code>josh.lab</code>. SYSVOL and NETLOGON were present and online. Exchange Server was not installed: the only <code>*Exchange*</code> service was Hyper-V Data Exchange, and <code>C:\Program Files\Microsoft\Exchange Server\V15</code> did not exist.</p>
+</section>
+<section class="chapter" id="1-executive-summary-and-current-status"><a class="toplink" href="#top">Back to top</a><h2>1. Executive summary and current status</h2>
+<h3>Plain English summary</h3>
+<p>You have successfully built the start of a real Windows domain lab. The next sensible milestone is not Exchange. It is a Windows 10 Pro client VM joined to <code>josh.lab</code>, logging in as a test domain user, applying Group Policy, and accessing a domain share.</p>
+<div class="table-wrap"><table><thead><tr><th>Area</th><th>Current status</th><th>Meaning</th></tr></thead><tbody><tr><td>Windows Server 2022 VM</td><td><span class="badge good">Working</span></td><td>Server OS is running in VirtualBox.</td></tr><tr><td>Active Directory Domain Services</td><td><span class="badge good">Working</span></td><td>The VM is a domain controller for <code>josh.lab</code>.</td></tr><tr><td>DNS</td><td><span class="badge good">Working</span></td><td>The domain name resolves to the DC.</td></tr><tr><td>Kerberos and Netlogon</td><td><span class="badge good">Working</span></td><td>The core domain authentication services are running.</td></tr><tr><td>SYSVOL and NETLOGON shares</td><td><span class="badge good">Online</span></td><td>Group Policy and logon script shares exist.</td></tr><tr><td>DFSR event test</td><td><span class="badge warn">Warning</span></td><td>Old setup/startup errors can make dcdiag fail for 24 hours even when service is now running.</td></tr><tr><td>Time service</td><td><span class="badge warn">Watch</span></td><td>The VM had big time jumps earlier; AD relies on time accuracy.</td></tr><tr><td>Exchange / OWA</td><td><span class="badge bad">Not installed</span></td><td>OWA CVE testing does not apply to this VM yet.</td></tr><tr><td>Lab hardware</td><td><span class="badge warn">Constrained</span></td><td>The Lenovo ThinkPad should not be expected to run DC + client + Exchange comfortably all at once.</td></tr></tbody></table></div>
+<h3>Best immediate path</h3>
+<ol>
+<li>Keep your current VM as <strong>DC01</strong>.</li>
+<li>Create a second VM on the ThinkPad called <strong>CLIENT01</strong> using Windows 10 Pro 22H2 x64.</li>
+<li>Use a VirtualBox Internal Network for AD traffic.</li>
+<li>Optionally add a second bridged adapter to CLIENT01 so you can remote into it from the ProBook.</li>
+<li>Join CLIENT01 to <code>josh.lab</code>.</li>
+<li>Test domain login, DNS, Group Policy, and file shares.</li>
+<li>Only after that, think about Exchange as a separate short-lived or stronger-hardware lab.</li>
+</ol>
+</section>
+<section class="chapter" id="2-safety-ethics-and-lab-boundary"><a class="toplink" href="#top">Back to top</a><h2>2. Safety, ethics, and lab boundary</h2>
+<p>The lab is for learning Windows Server, Active Directory, domain joins, Group Policy, basic defensive security and safe Exchange mitigation validation. Treat any CVE or OWA work as defensive only.</p>
+<h3>Allowed in this guide</h3>
+<ul>
+<li>Building AD, DNS, users, groups, shares and Group Policy.</li>
+<li>Joining a client VM to a test domain.</li>
+<li>Verifying whether Exchange/OWA exists.</li>
+<li>Checking patch state, mitigation state, service health and logs.</li>
+<li>Learning generic XSS/CSP concepts in toy, non-Exchange examples if needed.</li>
+</ul>
+<h3>Not included</h3>
+<ul>
+<li>No malicious OWA payloads.</li>
+<li>No crafted exploit emails.</li>
+<li>No instructions to bypass MFA, steal sessions, or run script in OWA.</li>
+<li>No testing against DCS, Avance, client systems, or any public IP without written authorisation and scope.</li>
+</ul>
+<div class="callout warn"><strong>Work laptop caution</strong><p>Do not join the actual DCS ProBook host to your personal lab domain. If you use the ProBook, use it only as a remote console, and only if you are authorised to use it for lab learning.</p></div>
+</section>
+<section class="chapter" id="3-lab-roadmap"><a class="toplink" href="#top">Back to top</a><h2>3. Lab roadmap</h2>
+<h3>Stage roadmap</h3>
+<div class="table-wrap"><table><thead><tr><th>Stage</th><th>Goal</th><th>VMs running</th><th>Exit criteria</th></tr></thead><tbody><tr><td>0. Confirm current DC</td><td>Know what already works</td><td>DC01 only</td><td>ADWS, DNS, KDC, Netlogon running; SYSVOL and NETLOGON online.</td></tr><tr><td>1. Clean DC foundations</td><td>Static IP, time, DNS health</td><td>DC01 only</td><td>dcdiag mostly clean or warnings understood; time stable; DC DNS points to itself.</td></tr><tr><td>2. Build client VM</td><td>Install Windows client</td><td>DC01 + CLIENT01</td><td>CLIENT01 boots, can ping DC, DNS points to DC.</td></tr><tr><td>3. Domain join</td><td>Prove core AD stack</td><td>DC01 + CLIENT01</td><td>CLIENT01 joins <code>josh.lab</code>, reboots, <code>JOSHLAB\testuser</code> logs in.</td></tr><tr><td>4. Group Policy and shares</td><td>Practical admin skills</td><td>DC01 + CLIENT01</td><td>Mapped drive / wallpaper / local admin restriction / test policy applies.</td></tr><tr><td>5. Remote console convenience</td><td>Use ProBook as screen only</td><td>DC01 + CLIENT01 on ThinkPad; ProBook RDP client</td><td>Remote Desktop reaches CLIENT01 without joining ProBook host to the lab domain.</td></tr><tr><td>6. Exchange planning</td><td>Assess hardware and design</td><td>DC01 + EX01, not always CLIENT01</td><td>EX01 is a separate member server, not the DC; install only if resources allow.</td></tr><tr><td>7. OWA defensive validation</td><td>Mitigation/logging only</td><td>DC01 + EX01 + browser briefly</td><td>OWA exists, mitigation checks run; no exploit reproduction.</td></tr></tbody></table></div>
+<h3>Minimum weekly learning plan</h3>
+<ul>
+<li><strong>Session 1:</strong> fix/confirm DC static IP and DNS.</li>
+<li><strong>Session 2:</strong> build Windows 10 Pro client VM.</li>
+<li><strong>Session 3:</strong> join the domain and log in as a domain user.</li>
+<li><strong>Session 4:</strong> create users, groups, shares and permissions.</li>
+<li><strong>Session 5:</strong> create and test Group Policy.</li>
+<li><strong>Session 6:</strong> practise troubleshooting with broken DNS, broken time, and wrong credentials.</li>
+</ul>
+</section>
+<section class="chapter" id="4-naming-ip-plan-and-vm-sizing"><a class="toplink" href="#top">Back to top</a><h2>4. Naming, IP plan, and VM sizing</h2>
+<h3>Recommended names</h3>
+<div class="table-wrap"><table><thead><tr><th>Role</th><th>VM name</th><th>Computer name</th><th>Purpose</th></tr></thead><tbody><tr><td>Domain Controller</td><td>DC01</td><td>DC01</td><td>AD DS, DNS, authentication, Group Policy.</td></tr><tr><td>Windows Client</td><td>CLIENT01</td><td>CLIENT01</td><td>Windows 10 Pro test device joined to domain.</td></tr><tr><td>Future Exchange</td><td>EX01</td><td>EX01</td><td>Separate member server for Exchange/OWA if hardware allows.</td></tr></tbody></table></div>
+<h3>Internal Network IP plan</h3>
+<p>Use this when both DC01 and CLIENT01 run on the ThinkPad and communicate through a VirtualBox Internal Network called <code>JoshLab-Internal</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>VM</th><th>IP</th><th>Subnet</th><th>Gateway</th><th>DNS</th></tr></thead><tbody><tr><td>DC01</td><td>10.10.10.10</td><td>255.255.255.0</td><td>blank</td><td>127.0.0.1</td></tr><tr><td>CLIENT01</td><td>10.10.10.20</td><td>255.255.255.0</td><td>blank</td><td>10.10.10.10</td></tr><tr><td>EX01 later</td><td>10.10.10.30</td><td>255.255.255.0</td><td>blank</td><td>10.10.10.10</td></tr></tbody></table></div>
+<h3>Suggested VM sizing for your Lenovo</h3>
+<div class="table-wrap"><table><thead><tr><th>VM</th><th>RAM</th><th>CPU</th><th>Disk</th><th>Notes</th></tr></thead><tbody><tr><td>DC01</td><td>2-4 GB</td><td>1-2 cores</td><td>60 GB dynamic</td><td>Server Core would be lighter, but Desktop Experience is easier for learning.</td></tr><tr><td>CLIENT01</td><td>2-4 GB</td><td>1-2 cores</td><td>60 GB dynamic</td><td>Windows 10 Pro 22H2 x64 is lighter than Windows 11.</td></tr><tr><td>EX01</td><td>8-16 GB bare minimum for lab pain</td><td>2-4 cores</td><td>120 GB+ dynamic</td><td>Do later only. Exchange is heavy and Microsoft production recommendations are much higher.</td></tr></tbody></table></div>
+<div class="callout tip"><strong>Resource rule</strong><p>For your ThinkPad, the practical pattern is DC01 + CLIENT01 for AD learning, then DC01 + EX01 for Exchange learning, not all three all the time.</p></div>
+</section>
+<section class="chapter" id="5-virtualbox-networking-scenarios"><a class="toplink" href="#top">Back to top</a><h2>5. VirtualBox networking scenarios</h2>
+<p>Most AD lab failures are really DNS/network design failures. This chapter is your decision map.</p>
+<h3>Scenario A - NAT only</h3>
+<div class="table-wrap"><table><thead><tr><th>Use case</th><th>Works for</th><th>Problems</th></tr></thead><tbody><tr><td>One VM with internet access</td><td>Installing updates, downloading tools</td><td>Other VMs and other laptops usually cannot reach the VM. <code>10.0.2.15</code> is NAT-local.</td></tr></tbody></table></div>
+<pre><button class="copy">Copy</button><code class="language-text">VirtualBox Settings &gt; Network &gt; Adapter 1
+Attached to: NAT
+
+Typical guest IP: 10.0.2.15
+Typical gateway: 10.0.2.2</code></pre>
+<p>Good for installing Windows and updates. Bad as the final AD lab network if you need a client VM to join the domain.</p>
+<h3>Scenario B - Internal Network</h3>
+<div class="table-wrap"><table><thead><tr><th>Use case</th><th>Works for</th><th>Problems</th></tr></thead><tbody><tr><td>Clean two-VM AD lab on one host</td><td>DC01 and CLIENT01 talk privately</td><td>The host and ProBook cannot directly remote into the guest unless you add another adapter.</td></tr></tbody></table></div>
+<pre><button class="copy">Copy</button><code class="language-text">VirtualBox Settings &gt; Network &gt; Adapter 1
+Attached to: Internal Network
+Name: JoshLab-Internal</code></pre>
+<p>This is the cleanest model for AD learning.</p>
+<h3>Scenario C - Host-only Adapter</h3>
+<div class="table-wrap"><table><thead><tr><th>Use case</th><th>Works for</th><th>Problems</th></tr></thead><tbody><tr><td>Host needs to reach VMs</td><td>RDP/browser from ThinkPad host to VMs</td><td>Not automatically reachable from the ProBook unless routed or bridged.</td></tr></tbody></table></div>
+<pre><button class="copy">Copy</button><code class="language-text">VirtualBox Settings &gt; Network &gt; Adapter 1
+Attached to: Host-only Adapter
+Name: VirtualBox Host-Only Ethernet Adapter</code></pre>
+<h3>Scenario D - Bridged Adapter</h3>
+<div class="table-wrap"><table><thead><tr><th>Use case</th><th>Works for</th><th>Problems</th></tr></thead><tbody><tr><td>VM appears on normal home LAN</td><td>ProBook can RDP to ThinkPad-hosted client VM</td><td>School/work networks may block or monitor this. IP can change unless reserved/static.</td></tr></tbody></table></div>
+<pre><button class="copy">Copy</button><code class="language-text">VirtualBox Settings &gt; Network &gt; Adapter 1
+Attached to: Bridged Adapter
+Name: your Wi-Fi or Ethernet adapter</code></pre>
+<h3>Scenario E - Dual adapter client for ProBook remote control</h3>
+<p>This is the plan you suggested, and it is good. CLIENT01 runs on the ThinkPad but is visible from the ProBook via Remote Desktop.</p>
+<div class="table-wrap"><table><thead><tr><th>VM</th><th>Adapter 1</th><th>Adapter 2</th><th>Why</th></tr></thead><tbody><tr><td>DC01</td><td>Internal Network: JoshLab-Internal</td><td>Optional NAT for updates only</td><td>Keeps AD private.</td></tr><tr><td>CLIENT01</td><td>Internal Network: JoshLab-Internal</td><td>Bridged Adapter</td><td>Uses internal adapter for domain/DNS; bridged adapter for RDP from ProBook.</td></tr></tbody></table></div>
+<div class="callout warn"><strong>DNS gotcha</strong><p>On CLIENT01, the domain adapter must use DC01 as DNS. Do not point domain DNS to your router, 8.8.8.8 or 1.1.1.1.</p></div>
+<h3>Scenario F - Two laptops, each running a VM</h3>
+<p>Possible, but more fragile. Both VMs need bridged networking or another routable network. This is less clean than running both VMs on the ThinkPad and remoting in.</p>
+<h3>VBoxManage command examples</h3>
+<p>Run these on the Windows host in a normal Command Prompt or PowerShell, adjusting VM names and adapter names.</p>
+<pre><button class="copy">Copy</button><code class="language-powershell">cd &quot;C:\Program Files\Oracle\VirtualBox&quot;
+
+# Put DC01 on an internal network.
+.\VBoxManage.exe modifyvm &quot;DC01&quot; --nic1 intnet --intnet1 &quot;JoshLab-Internal&quot;
+
+# Put CLIENT01 on the same internal network.
+.\VBoxManage.exe modifyvm &quot;CLIENT01&quot; --nic1 intnet --intnet1 &quot;JoshLab-Internal&quot;
+
+# Add a bridged second adapter to CLIENT01 for RDP from the ProBook.
+.\VBoxManage.exe modifyvm &quot;CLIENT01&quot; --nic2 bridged --bridgeadapter2 &quot;Intel(R) Wi-Fi 6 AX201&quot;
+
+# Show VM network config.
+.\VBoxManage.exe showvminfo &quot;CLIENT01&quot; | findstr /i &quot;NIC&quot;</code></pre>
+</section>
+<section class="chapter" id="6-build-and-confirm-dc01"><a class="toplink" href="#top">Back to top</a><h2>6. Build and confirm DC01</h2>
+<h3>Rename server</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Rename-Computer -NewName &quot;DC01&quot; -Restart</code></pre>
+<h3>Install AD DS and DNS roles</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Install-WindowsFeature AD-Domain-Services,DNS -IncludeManagementTools</code></pre>
+<h3>Create the forest</h3>
+<p>Your current lab uses <code>josh.lab</code>. Keep it simple and local to your lab.</p>
+<pre><button class="copy">Copy</button><code class="language-powershell">Install-ADDSForest `
+  -DomainName &quot;josh.lab&quot; `
+  -DomainNetbiosName &quot;JOSHLAB&quot; `
+  -InstallDNS `
+  -Force</code></pre>
+<h3>Confirm core services</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-Service ADWS,KDC,Netlogon,DNS
+Get-ADDomain
+Get-ADForest
+hostname
+whoami /fqdn</code></pre>
+<h3>Expected service result</h3>
+<pre><button class="copy">Copy</button><code class="language-text">Status   Name       DisplayName
+------   ----       -----------
+Running  ADWS       Active Directory Web Services
+Running  DNS        DNS Server
+Running  KDC        Kerberos Key Distribution Center
+Running  Netlogon   Netlogon</code></pre>
+<h3>What these services mean</h3>
+<div class="table-wrap"><table><thead><tr><th>Service</th><th>Meaning</th></tr></thead><tbody><tr><td>ADWS</td><td>Lets modern AD management tools talk to Active Directory.</td></tr><tr><td>DNS</td><td>Holds domain records like <code>_ldap._tcp.josh.lab</code> and resolves <code>josh.lab</code>.</td></tr><tr><td>KDC</td><td>Kerberos authentication. Domain logon depends on this.</td></tr><tr><td>Netlogon</td><td>Domain logon support and secure channel support.</td></tr></tbody></table></div>
+</section>
+<section class="chapter" id="7-static-ip-and-dns-setup"><a class="toplink" href="#top">Back to top</a><h2>7. Static IP and DNS setup</h2>
+<p>Domain controllers should use stable IP addresses. Your earlier output warned that the DC had a dynamic IP. That is one of the first things to clean up.</p>
+<h3>Check current network config</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-NetIPConfiguration
+Get-NetAdapter
+ipconfig /all</code></pre>
+<h3>Internal Network static IP for DC01</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># Adjust InterfaceAlias if your adapter is not named Ethernet.
+Get-NetAdapter
+
+New-NetIPAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -IPAddress 10.10.10.10 `
+  -PrefixLength 24
+
+Set-DnsClientServerAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -ServerAddresses 127.0.0.1</code></pre>
+<h3>If you are temporarily using NAT only</h3>
+<p>This can work for one-VM testing, but is not ideal for client domain join.</p>
+<pre><button class="copy">Copy</button><code class="language-powershell"># NAT-style example only.
+New-NetIPAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -IPAddress 10.0.2.15 `
+  -PrefixLength 24 `
+  -DefaultGateway 10.0.2.2
+
+Set-DnsClientServerAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -ServerAddresses 127.0.0.1</code></pre>
+<h3>Confirm DNS records</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">nslookup josh.lab 127.0.0.1
+nslookup _ldap._tcp.dc._msdcs.josh.lab 127.0.0.1
+Resolve-DnsName josh.lab
+Resolve-DnsName _ldap._tcp.dc._msdcs.josh.lab -Type SRV</code></pre>
+<div class="callout tip"><strong>Rule to remember</strong><p>Domain clients find domain controllers through DNS SRV records. If DNS is wrong, AD looks broken even when AD itself is fine.</p></div>
+</section>
+<section class="chapter" id="8-dc-health-checks-and-how-to-read-them"><a class="toplink" href="#top">Back to top</a><h2>8. DC health checks and how to read them</h2>
+<h3>Core diagnostics</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">dcdiag /c /v
+dcdiag /q
+dcdiag /test:dns /v
+dcdiag /test:dfsrevent /v
+repadmin /replsummary
+repadmin /showrepl
+Get-SmbShare SYSVOL,NETLOGON
+Get-Service DFSR
+w32tm /query /status</code></pre>
+<h3>How to interpret common results</h3>
+<div class="table-wrap"><table><thead><tr><th>Output</th><th>Meaning</th><th>Action</th></tr></thead><tbody><tr><td><code>passed test Connectivity</code></td><td>LDAP/RPC to the DC works.</td><td>Good.</td></tr><tr><td><code>passed test Advertising</code></td><td>The DC advertises itself as DC, LDAP, KDC, GC/time server.</td><td>Good.</td></tr><tr><td><code>passed test DNS</code></td><td>DNS records exist and dynamic updates work.</td><td>Good.</td></tr><tr><td><code>failed test DFSREvent</code> shortly after build</td><td>Often old event log errors from setup/startup.</td><td>Confirm DFSR is running and SYSVOL/NETLOGON are online; re-test later.</td></tr><tr><td><code>failed test SystemLog</code> with unexpected shutdown</td><td>The VM was powered off roughly or rebooted during setup.</td><td>Shut down cleanly; ignore if not recurring.</td></tr><tr><td><code>Warning IP address is dynamic</code></td><td>DC uses DHCP.</td><td>Set a static IP.</td></tr><tr><td><code>time service ... offset</code></td><td>VM time jumped.</td><td>Fix time sync.</td></tr></tbody></table></div>
+<h3>DFSR specific checks</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-Service DFSR
+dfsrdiag pollad
+dcdiag /test:dfsrevent /v
+Get-SmbShare SYSVOL,NETLOGON</code></pre>
+<h3>Why DFSREvent can still fail</h3>
+<p><code>dcdiag</code> checks recent event logs. It can report old DFSR warnings/errors for up to 24 hours after SYSVOL was shared. If <code>DFSR</code> is running, <code>dfsrdiag pollad</code> succeeds, and <code>SYSVOL</code>/<code>NETLOGON</code> are online, the domain may be fine even while the event test still complains.</p>
+</section>
+<section class="chapter" id="9-time-service-and-kerberos"><a class="toplink" href="#top">Back to top</a><h2>9. Time service and Kerberos</h2>
+<p>AD authentication relies heavily on time. Big time jumps can cause Kerberos failures, domain join failures and strange login issues.</p>
+<h3>Check time</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">w32tm /query /status
+w32tm /query /configuration
+Get-Date</code></pre>
+<h3>Force a resync</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">w32tm /resync /force</code></pre>
+<h3>Configure the PDC emulator to use an external time source</h3>
+<p>For a small lab, DC01 is the forest root PDC emulator. During a connected/update window, you can set it as reliable and sync to an external source.</p>
+<pre><button class="copy">Copy</button><code class="language-powershell">w32tm /config /manualpeerlist:&quot;time.windows.com&quot; /syncfromflags:manual /reliable:yes /update
+Restart-Service w32time
+w32tm /resync /force
+w32tm /query /status</code></pre>
+<h3>Client time check after domain join</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">w32tm /query /source
+w32tm /query /status
+nltest /dsgetdc:josh.lab</code></pre>
+</section>
+<section class="chapter" id="10-create-users-groups-and-ous"><a class="toplink" href="#top">Back to top</a><h2>10. Create users, groups, and OUs</h2>
+<h3>Create a simple OU layout</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">New-ADOrganizationalUnit -Name &quot;Lab&quot; -Path &quot;DC=josh,DC=lab&quot;
+New-ADOrganizationalUnit -Name &quot;Users&quot; -Path &quot;OU=Lab,DC=josh,DC=lab&quot;
+New-ADOrganizationalUnit -Name &quot;Computers&quot; -Path &quot;OU=Lab,DC=josh,DC=lab&quot;
+New-ADOrganizationalUnit -Name &quot;Groups&quot; -Path &quot;OU=Lab,DC=josh,DC=lab&quot;</code></pre>
+<h3>Create a test user</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">New-ADUser `
+  -Name &quot;Test User&quot; `
+  -SamAccountName &quot;testuser&quot; `
+  -UserPrincipalName &quot;testuser@josh.lab&quot; `
+  -Path &quot;OU=Users,OU=Lab,DC=josh,DC=lab&quot; `
+  -AccountPassword (Read-Host -AsSecureString &quot;Enter password&quot;) `
+  -Enabled $true</code></pre>
+<h3>Common account commands</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-ADUser testuser -Properties *
+Set-ADAccountPassword testuser -Reset -NewPassword (Read-Host -AsSecureString &quot;New password&quot;)
+Unlock-ADAccount testuser
+Disable-ADAccount testuser
+Enable-ADAccount testuser
+Set-ADUser testuser -ChangePasswordAtLogon $false</code></pre>
+<h3>Create groups and add the user</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">New-ADGroup `
+  -Name &quot;Lab Share Users&quot; `
+  -SamAccountName &quot;LabShareUsers&quot; `
+  -GroupScope Global `
+  -GroupCategory Security `
+  -Path &quot;OU=Groups,OU=Lab,DC=josh,DC=lab&quot;
+
+Add-ADGroupMember -Identity &quot;Lab Share Users&quot; -Members testuser
+Get-ADGroupMember &quot;Lab Share Users&quot;</code></pre>
+</section>
+<section class="chapter" id="11-build-client01-with-windows-10-pro"><a class="toplink" href="#top">Back to top</a><h2>11. Build CLIENT01 with Windows 10 Pro</h2>
+<h3>Edition recommendation</h3>
+<p>Use <strong>Windows 10 Pro 22H2 x64</strong> for the client VM. The ISO is free to download from Microsoft, but Windows itself still requires a valid licence for long-term/activated use. During install, choose <strong>I do not have a product key</strong>, then choose <strong>Windows 10 Pro</strong>. Do not use Windows Home, because Home cannot join an on-prem Active Directory domain.</p>
+<h3>Download flow</h3>
+<ol>
+<li>Open Microsoft Windows 10 download page.</li>
+<li>Download the Media Creation Tool.</li>
+<li>Choose <strong>Create installation media for another PC</strong>.</li>
+<li>Choose English, Windows 10, 64-bit x64.</li>
+<li>Choose ISO file.</li>
+<li>Attach the ISO to the CLIENT01 VM in VirtualBox.</li>
+</ol>
+<h3>VirtualBox VM settings</h3>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Value</th></tr></thead><tbody><tr><td>Name</td><td>CLIENT01</td></tr><tr><td>Type/version</td><td>Microsoft Windows / Windows 10 64-bit</td></tr><tr><td>RAM</td><td>4096 MB if possible, 2048 MB minimum</td></tr><tr><td>CPU</td><td>2 cores if possible</td></tr><tr><td>Disk</td><td>60 GB dynamic VDI</td></tr><tr><td>Network Adapter 1</td><td>Internal Network: <code>JoshLab-Internal</code></td></tr><tr><td>Network Adapter 2 optional</td><td>Bridged Adapter if you want RDP from the ProBook</td></tr></tbody></table></div>
+<h3>After install, rename the client</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Rename-Computer -NewName &quot;CLIENT01&quot; -Restart</code></pre>
+</section>
+<section class="chapter" id="12-configure-client01-networking"><a class="toplink" href="#top">Back to top</a><h2>12. Configure CLIENT01 networking</h2>
+<h3>Internal adapter only</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-NetAdapter
+
+New-NetIPAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -IPAddress 10.10.10.20 `
+  -PrefixLength 24
+
+Set-DnsClientServerAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -ServerAddresses 10.10.10.10
+
+ipconfig /all</code></pre>
+<h3>Dual adapter client: Internal + Bridged</h3>
+<p>If CLIENT01 has one internal domain adapter and one bridged adapter for RDP, be careful with DNS. The internal/domain adapter should use the DC for DNS. The bridged adapter can use your home router for internet if needed, but do not let it become the preferred DNS path for domain lookup.</p>
+<pre><button class="copy">Copy</button><code class="language-powershell"># Example: set DNS on internal/domain adapter.
+Set-DnsClientServerAddress -InterfaceAlias &quot;Ethernet&quot; -ServerAddresses 10.10.10.10
+
+# Example: if bridged adapter is Ethernet 2, leave DNS automatic or set router as needed.
+Get-DnsClientServerAddress
+Get-NetIPConfiguration</code></pre>
+<h3>Connectivity tests before joining the domain</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">ping 10.10.10.10
+nslookup josh.lab 10.10.10.10
+Resolve-DnsName josh.lab -Server 10.10.10.10
+Test-NetConnection 10.10.10.10 -Port 53
+Test-NetConnection 10.10.10.10 -Port 88
+Test-NetConnection 10.10.10.10 -Port 389
+Test-NetConnection 10.10.10.10 -Port 445
+nltest /dsgetdc:josh.lab</code></pre>
+<h3>Ports to understand</h3>
+<div class="table-wrap"><table><thead><tr><th>Port</th><th>Service</th><th>Why it matters</th></tr></thead><tbody><tr><td>53</td><td>DNS</td><td>Client finds the domain and DC records.</td></tr><tr><td>88</td><td>Kerberos</td><td>Domain authentication.</td></tr><tr><td>389</td><td>LDAP</td><td>Directory queries.</td></tr><tr><td>445</td><td>SMB</td><td>SYSVOL, NETLOGON and file shares.</td></tr><tr><td>3389</td><td>RDP</td><td>Remote control if enabled.</td></tr></tbody></table></div>
+</section>
+<section class="chapter" id="13-join-client01-to-joshlab"><a class="toplink" href="#top">Back to top</a><h2>13. Join CLIENT01 to josh.lab</h2>
+<h3>PowerShell method</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Add-Computer -DomainName josh.lab -Credential JOSHLAB\\Administrator -Restart</code></pre>
+<h3>GUI method</h3>
+<ol>
+<li>Open <strong>Control Panel</strong>.</li>
+<li>Go to <strong>System and Security</strong> then <strong>System</strong>.</li>
+<li>Select <strong>Change settings</strong>.</li>
+<li>Computer Name tab - <strong>Change</strong>.</li>
+<li>Member of - select <strong>Domain</strong>.</li>
+<li>Enter <code>josh.lab</code>.</li>
+<li>Use <code>JOSHLAB\Administrator</code> credentials.</li>
+<li>Restart when prompted.</li>
+</ol>
+<h3>After reboot</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># Log on as:
+JOSHLAB\testuser
+
+# Then run:
+whoami
+whoami /fqdn
+gpresult /r
+nltest /dsgetdc:josh.lab
+Test-ComputerSecureChannel -Verbose</code></pre>
+<h3>Move computer object into your lab OU</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-ADComputer CLIENT01
+Move-ADObject `
+  -Identity (Get-ADComputer CLIENT01).DistinguishedName `
+  -TargetPath &quot;OU=Computers,OU=Lab,DC=josh,DC=lab&quot;</code></pre>
+<h3>Common join failures</h3>
+<div class="table-wrap"><table><thead><tr><th>Error / symptom</th><th>Likely cause</th><th>Fix</th></tr></thead><tbody><tr><td>Domain cannot be contacted</td><td>Client DNS is not pointing to DC01.</td><td>Set client DNS to <code>10.10.10.10</code> and retry <code>nltest /dsgetdc:josh.lab</code>.</td></tr><tr><td>Credential prompt rejects credentials</td><td>Wrong domain prefix or password.</td><td>Use <code>JOSHLAB\Administrator</code> or <code>administrator@josh.lab</code>.</td></tr><tr><td>Time/Kerberos errors</td><td>Client and DC clocks differ too much.</td><td>Fix <code>w32tm</code> and resync.</td></tr><tr><td>Ping works but join fails</td><td>DNS SRV records or firewall issue.</td><td>Test ports 53, 88, 389, 445 and run <code>dcdiag /test:dns /v</code>.</td></tr></tbody></table></div>
+</section>
+<section class="chapter" id="14-remote-into-client01-from-the-probook"><a class="toplink" href="#top">Back to top</a><h2>14. Remote into CLIENT01 from the ProBook</h2>
+<p>This lets the ProBook act as a screen/keyboard while the VM still runs on the ThinkPad.</p>
+<h3>Enable RDP on CLIENT01</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Set-ItemProperty `
+  -Path &quot;HKLM:\System\CurrentControlSet\Control\Terminal Server&quot; `
+  -Name &quot;fDenyTSConnections&quot; `
+  -Value 0
+
+Enable-NetFirewallRule -DisplayGroup &quot;Remote Desktop&quot;
+
+# Optional: allow your domain test user to use RDP.
+Add-LocalGroupMember -Group &quot;Remote Desktop Users&quot; -Member &quot;JOSHLAB\testuser&quot;</code></pre>
+<h3>Find CLIENT01 bridged IP</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">ipconfig
+Get-NetIPConfiguration</code></pre>
+<h3>From the ProBook</h3>
+<pre><button class="copy">Copy</button><code class="language-text">mstsc</code></pre>
+<p>Computer: the bridged IP address of CLIENT01. Username: <code>JOSHLAB\testuser</code>.</p>
+<div class="callout warn"><strong>Do not join the ProBook host</strong><p>The ProBook should remain outside the lab domain. It only opens Remote Desktop to CLIENT01.</p></div>
+<h3>If RDP fails</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># From ProBook PowerShell, replace IP with CLIENT01 bridged IP.
+Test-NetConnection 192.168.0.50 -Port 3389
+ping 192.168.0.50</code></pre>
+</section>
+<section class="chapter" id="15-first-practical-ad-tests"><a class="toplink" href="#top">Back to top</a><h2>15. First practical AD tests</h2>
+<h3>Test 1 - domain user login</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On CLIENT01 after domain login
+whoami
+whoami /groups
+whoami /fqdn
+Test-ComputerSecureChannel -Verbose</code></pre>
+<h3>Test 2 - create a domain share</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On DC01
+New-Item -ItemType Directory -Path C:\LabShare -Force
+New-SmbShare -Name LabShare -Path C:\LabShare -ChangeAccess &quot;JOSHLAB\Lab Share Users&quot;
+
+# NTFS permissions - grant modify to group.
+$acl = Get-Acl C:\LabShare
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule(&quot;JOSHLAB\Lab Share Users&quot;,&quot;Modify&quot;,&quot;ContainerInherit,ObjectInherit&quot;,&quot;None&quot;,&quot;Allow&quot;)
+$acl.AddAccessRule($rule)
+Set-Acl C:\LabShare $acl
+
+# Create a test file.
+&quot;Hello from the domain&quot; | Out-File C:\LabShare\hello.txt</code></pre>
+<h3>Test share from CLIENT01</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">dir \\DC01\LabShare
+New-PSDrive -Name L -PSProvider FileSystem -Root \\DC01\LabShare -Persist
+notepad L:\hello.txt</code></pre>
+<h3>Test 3 - Group Policy smoke test</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On DC01
+New-GPO -Name &quot;Lab - First Test Policy&quot;
+New-GPLink -Name &quot;Lab - First Test Policy&quot; -Target &quot;OU=Computers,OU=Lab,DC=josh,DC=lab&quot;
+
+# On CLIENT01
+gpupdate /force
+gpresult /r
+gpresult /h C:\Users\Public\Desktop\gpresult.html</code></pre>
+<p>For a visible first policy, use the Group Policy Management GUI and configure something harmless, such as a desktop wallpaper or control panel restriction for the lab OU.</p>
+</section>
+<section class="chapter" id="16-group-policy-learning-path"><a class="toplink" href="#top">Back to top</a><h2>16. Group Policy learning path</h2>
+<h3>Recommended starter policies</h3>
+<div class="table-wrap"><table><thead><tr><th>Policy</th><th>Why it teaches well</th><th>Risk</th></tr></thead><tbody><tr><td>Map a drive</td><td>Teaches users, groups, shares and GPP.</td><td>Low.</td></tr><tr><td>Set wallpaper</td><td>Very visible proof that GPO applies.</td><td>Low.</td></tr><tr><td>Disable Control Panel for test user</td><td>Teaches user policy targeting.</td><td>Medium - can confuse you if applied too broadly.</td></tr><tr><td>Add test local admin group</td><td>Teaches restricted groups/local users and groups.</td><td>Medium - understand before using.</td></tr><tr><td>Windows Firewall rule for RDP</td><td>Teaches endpoint policy.</td><td>Medium.</td></tr></tbody></table></div>
+<h3>Useful GPO commands</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Import-Module GroupPolicy
+Get-GPO -All
+New-GPO -Name &quot;Lab - Test&quot;
+New-GPLink -Name &quot;Lab - Test&quot; -Target &quot;OU=Computers,OU=Lab,DC=josh,DC=lab&quot;
+Get-GPInheritance -Target &quot;OU=Computers,OU=Lab,DC=josh,DC=lab&quot;
+gpupdate /force
+gpresult /r
+gpresult /h C:\Temp\gpresult.html
+rsop.msc</code></pre>
+<h3>GPO troubleshooting model</h3>
+<ol>
+<li>Is the computer/user object in the OU where the GPO is linked?</li>
+<li>Is the GPO linked and enabled?</li>
+<li>Is security filtering excluding the object?</li>
+<li>Does the setting apply to Computer Configuration or User Configuration?</li>
+<li>Has the client refreshed policy?</li>
+<li>Does <code>gpresult</code> show the policy as applied or denied?</li>
+</ol>
+</section>
+<section class="chapter" id="17-troubleshooting-decision-trees"><a class="toplink" href="#top">Back to top</a><h2>17. Troubleshooting decision trees</h2>
+<h3>Domain join fails</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On CLIENT01
+ipconfig /all
+nslookup josh.lab 10.10.10.10
+Resolve-DnsName _ldap._tcp.dc._msdcs.josh.lab -Type SRV -Server 10.10.10.10
+Test-NetConnection 10.10.10.10 -Port 53
+Test-NetConnection 10.10.10.10 -Port 88
+Test-NetConnection 10.10.10.10 -Port 389
+Test-NetConnection 10.10.10.10 -Port 445
+w32tm /query /status
+nltest /dsgetdc:josh.lab</code></pre>
+<h3>Client joined but cannot log in</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On CLIENT01 local admin session
+Test-ComputerSecureChannel -Verbose
+nltest /sc_query:josh.lab
+klist
+w32tm /query /status
+
+# On DC01
+Get-ADUser testuser -Properties LockedOut,Enabled,BadLogonCount
+Search-ADAccount -LockedOut
+Unlock-ADAccount testuser</code></pre>
+<h3>SYSVOL or NETLOGON missing</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On DC01
+Get-SmbShare SYSVOL,NETLOGON
+Get-Service DFSR
+dfsrdiag pollad
+dcdiag /test:sysvolcheck /v
+dcdiag /test:netlogons /v
+dcdiag /test:dfsrevent /v</code></pre>
+<h3>DNS looks broken</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On DC01
+Get-DnsServerZone
+Get-DnsServerResourceRecord -ZoneName josh.lab
+ipconfig /registerdns
+Restart-Service Netlogon
+Restart-Service DNS
+dcdiag /test:dns /v
+
+# On CLIENT01
+ipconfig /flushdns
+ipconfig /registerdns
+Resolve-DnsName josh.lab -Server 10.10.10.10</code></pre>
+<h3>Time looks broken</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On DC01
+w32tm /query /status
+w32tm /resync /force
+
+# On CLIENT01
+w32tm /query /source
+w32tm /resync /force</code></pre>
+<h3>RDP does not work</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># On CLIENT01
+Get-NetFirewallRule -DisplayGroup &quot;Remote Desktop&quot; | Select DisplayName,Enabled
+Enable-NetFirewallRule -DisplayGroup &quot;Remote Desktop&quot;
+Get-ItemProperty &quot;HKLM:\System\CurrentControlSet\Control\Terminal Server&quot; -Name fDenyTSConnections
+
+# On ProBook
+Test-NetConnection &lt;CLIENT01-BRIDGED-IP&gt; -Port 3389</code></pre>
+</section>
+<section class="chapter" id="18-exchange-and-owa-what-your-lab-does-and-does-not-have"><a class="toplink" href="#top">Back to top</a><h2>18. Exchange and OWA: what your lab does and does not have</h2>
+<h3>Your current Exchange conclusion</h3>
+<p>Your check returned <code>vmickvpexchange</code>, which is <strong>Hyper-V Data Exchange Service</strong>, not Microsoft Exchange Server. <code>Test-Path "C:\Program Files\Microsoft\Exchange Server\V15"</code> returned <code>False</code>. Therefore Exchange/OWA is not installed and the OWA CVE is not applicable to the current VM.</p>
+<h3>Commands to confirm Exchange presence</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-Service *Exchange*
+Test-Path &quot;C:\Program Files\Microsoft\Exchange Server\V15&quot;
+Get-Command ExSetup.exe -ErrorAction SilentlyContinue
+Get-Website | Where-Object Name -like &quot;*Exchange*&quot;
+Get-WebApplication | Where-Object Path -like &quot;*owa*&quot;</code></pre>
+<h3>Do not install Exchange on DC01</h3>
+<p>For clean learning, keep Exchange separate. AD and Exchange are both heavy and security-sensitive. In production-style design, Exchange should be on a member server. Once Exchange is installed, changing the server between member server and domain controller roles is not supported.</p>
+<h3>Future Exchange lab shape</h3>
+<div class="table-wrap"><table><thead><tr><th>VM</th><th>Role</th><th>IP</th><th>When to run</th></tr></thead><tbody><tr><td>DC01</td><td>Domain Controller and DNS</td><td>10.10.10.10</td><td>Always needed for domain.</td></tr><tr><td>EX01</td><td>Exchange member server</td><td>10.10.10.30</td><td>Run with DC01 only when practising Exchange.</td></tr><tr><td>CLIENT01</td><td>Browser/client test</td><td>10.10.10.20</td><td>Run briefly for OWA browser testing or use host browser if reachable.</td></tr></tbody></table></div>
+<h3>Resource-limited operating pattern</h3>
+<pre><button class="copy">Copy</button><code class="language-text">Normal AD practice:       DC01 + CLIENT01
+Exchange install/practice: DC01 + EX01
+OWA smoke test:            DC01 + EX01 + CLIENT01 briefly, or DC01 + EX01 + host browser
+Do not expect:             DC01 + CLIENT01 + EX01 all day on a small ThinkPad</code></pre>
+</section>
+<section class="chapter" id="19-safe-exchange-planning-guide"><a class="toplink" href="#top">Back to top</a><h2>19. Safe Exchange planning guide</h2>
+<h3>Before you even try Exchange</h3>
+<ul>
+<li>Finish AD client domain join first.</li>
+<li>Take a snapshot of DC01.</li>
+<li>Confirm DC01 has static IP and stable DNS.</li>
+<li>Confirm the ThinkPad has enough spare RAM and disk.</li>
+<li>Expect Exchange to be slow in a small lab.</li>
+</ul>
+<h3>High-level build order</h3>
+<pre><button class="copy">Copy</button><code class="language-text">1. Build DC01 and josh.lab.
+2. Build EX01 as a separate Windows Server VM.
+3. Set EX01 DNS to DC01.
+4. Join EX01 to josh.lab.
+5. Install Exchange prerequisites using the current Microsoft documentation.
+6. Prepare AD using Exchange Setup if required.
+7. Install the Exchange Mailbox role.
+8. Create test mailboxes.
+9. Test OWA login and ordinary mail flow.
+10. Run defensive mitigation/health checks.</code></pre>
+<h3>EX01 basic member-server prep</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Rename-Computer -NewName &quot;EX01&quot; -Restart
+
+New-NetIPAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -IPAddress 10.10.10.30 `
+  -PrefixLength 24
+
+Set-DnsClientServerAddress `
+  -InterfaceAlias &quot;Ethernet&quot; `
+  -ServerAddresses 10.10.10.10
+
+Add-Computer -DomainName josh.lab -Credential JOSHLAB\\Administrator -Restart</code></pre>
+<h3>Exchange setup reminder</h3>
+<p>Use the current Microsoft Exchange prerequisites and setup documentation for the exact version you install. Do not rely on random blog scripts. Exchange version, Windows Server version, .NET requirements and Visual C++ dependencies can change by build.</p>
+</section>
+<section class="chapter" id="20-owa-cve-defensive-validation-only"><a class="toplink" href="#top">Back to top</a><h2>20. OWA / CVE defensive validation only</h2>
+<div class="callout safe"><strong>Boundary</strong><p>This chapter intentionally avoids exploit reproduction. It is for checking whether Exchange/OWA exists, whether mitigations are present, and whether logs/evidence are being collected.</p></div>
+<h3>Check build and services</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell"># Exchange Management Shell on EX01
+Get-Command ExSetup.exe | ForEach-Object { $_.FileVersionInfo }
+Get-Service *Exchange*
+Get-ExchangeServer | Format-List Name,Edition,AdminDisplayVersion,MitigationsEnabled,MitigationsApplied,MitigationsBlocked</code></pre>
+<h3>Check Exchange Emergency Mitigation service</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-Service MSExchangeMitigation
+Get-OrganizationConfig | Format-List MitigationsEnabled
+Get-ExchangeServer | Format-List Name,MitigationsEnabled,MitigationsApplied,MitigationsBlocked
+
+cd &quot;$env:ExchangeInstallPath\Scripts&quot;
+.\Test-MitigationServiceConnectivity.ps1</code></pre>
+<h3>Check OWA / IIS rewrite rules defensively</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Import-Module WebAdministration
+
+Get-WebConfiguration `
+  -PSPath &#x27;IIS:\Sites\Default Web Site\owa&#x27; `
+  -Filter &#x27;system.webServer/rewrite/outboundRules/rule&#x27; |
+  Select-Object name,enabled,preCondition |
+  Format-Table -AutoSize</code></pre>
+<h3>Browser-visible mitigation check</h3>
+<ol>
+<li>From a lab client, open OWA normally.</li>
+<li>Open Developer Tools.</li>
+<li>Network tab - reload OWA.</li>
+<li>Select the main OWA HTML response.</li>
+<li>Inspect Response Headers.</li>
+<li>Look for the expected defensive Content Security Policy header from Microsoft mitigation guidance.</li>
+</ol>
+<h3>Safe OWA smoke tests</h3>
+<div class="table-wrap"><table><thead><tr><th>Test</th><th>Expected result</th></tr></thead><tbody><tr><td>Login to OWA with test user</td><td>Login succeeds.</td></tr><tr><td>Read plain-text email</td><td>Message opens normally.</td></tr><tr><td>Read normal formatted email</td><td>Bold, bullet list and harmless link render normally.</td></tr><tr><td>Compose and send mail</td><td>Recipient receives message.</td></tr><tr><td>Reply and forward ordinary messages</td><td>No UI breakage.</td></tr><tr><td>Calendar opens</td><td>Basic calendar UI works.</td></tr><tr><td>Check mitigation/header state</td><td>Header/rule is present if applicable.</td></tr></tbody></table></div>
+<p>Do not send malformed HTML, script tags, event handlers, or CVE-specific payloads through OWA.</p>
+</section>
+<section class="chapter" id="21-evidence-collection-and-reporting"><a class="toplink" href="#top">Back to top</a><h2>21. Evidence collection and reporting</h2>
+<h3>Create an evidence folder</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">New-Item -ItemType Directory -Path C:\LabEvidence -Force</code></pre>
+<h3>Capture AD health</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">hostname | Out-File C:\LabEvidence\01-hostname.txt
+Get-NetIPConfiguration | Out-File C:\LabEvidence\02-network.txt
+Get-Service ADWS,KDC,Netlogon,DNS,DFSR | Out-File C:\LabEvidence\03-services.txt
+dcdiag /q | Out-File C:\LabEvidence\04-dcdiag-quick.txt
+dcdiag /test:dns /v | Out-File C:\LabEvidence\05-dcdiag-dns.txt
+Get-SmbShare SYSVOL,NETLOGON | Format-List * | Out-File C:\LabEvidence\06-sysvol-netlogon.txt
+w32tm /query /status | Out-File C:\LabEvidence\07-time.txt</code></pre>
+<h3>Capture client domain status</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">whoami /all | Out-File C:\LabEvidence\client-whoami.txt
+gpresult /r | Out-File C:\LabEvidence\client-gpresult.txt
+gpresult /h C:\LabEvidence\client-gpresult.html
+Test-ComputerSecureChannel -Verbose | Out-File C:\LabEvidence\client-secure-channel.txt
+nltest /dsgetdc:josh.lab | Out-File C:\LabEvidence\client-dsgetdc.txt</code></pre>
+<h3>Capture Exchange defensive status later</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-Command ExSetup.exe | ForEach-Object { $_.FileVersionInfo } | Out-File C:\LabEvidence\exchange-build.txt
+Get-Service MSExchangeMitigation | Format-List * | Out-File C:\LabEvidence\exchange-em-service.txt
+Get-ExchangeServer | Format-List Name,Edition,AdminDisplayVersion,MitigationsEnabled,MitigationsApplied,MitigationsBlocked | Out-File C:\LabEvidence\exchange-mitigations.txt</code></pre>
+<h3>PowerShell transcript wrapper</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Start-Transcript C:\LabEvidence\session-transcript.txt
+# Run commands here.
+Stop-Transcript</code></pre>
+</section>
+<section class="chapter" id="22-snapshot-and-rollback-strategy"><a class="toplink" href="#top">Back to top</a><h2>22. Snapshot and rollback strategy</h2>
+<h3>When to snapshot</h3>
+<div class="table-wrap"><table><thead><tr><th>Snapshot name</th><th>When</th></tr></thead><tbody><tr><td>01-Clean-OS</td><td>After Windows install, before roles.</td></tr><tr><td>02-Pre-ADDS</td><td>Before promoting DC01.</td></tr><tr><td>03-Post-AD-Healthy</td><td>After AD, DNS, SYSVOL and time are working.</td></tr><tr><td>04-Pre-Client-Join</td><td>Before joining CLIENT01 to the domain.</td></tr><tr><td>05-Post-Client-Join</td><td>After domain login works.</td></tr><tr><td>06-Pre-GPO-Experiments</td><td>Before testing policies that could lock you out.</td></tr><tr><td>07-Pre-Exchange</td><td>Before installing Exchange prerequisites or schema changes.</td></tr></tbody></table></div>
+<h3>Snapshot discipline</h3>
+<ul>
+<li>Shut down cleanly before snapshotting if possible.</li>
+<li>Do not keep long chains of snapshots forever; they can slow VMs and eat disk.</li>
+<li>Label snapshots with purpose, not just dates.</li>
+<li>Take evidence before rolling back so you still learn from the failure.</li>
+</ul>
+<h3>Clean shutdown commands</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">shutdown /s /t 0
+Restart-Computer
+Stop-Computer</code></pre>
+</section>
+<section class="chapter" id="23-security-hardening-learning-path"><a class="toplink" href="#top">Back to top</a><h2>23. Security hardening learning path</h2>
+<p>Do not harden everything immediately. First prove the lab works. Then harden one setting at a time and observe the effect.</p>
+<h3>Topics to learn after basics</h3>
+<div class="table-wrap"><table><thead><tr><th>Topic</th><th>Why it matters</th><th>Starter command/check</th></tr></thead><tbody><tr><td>LDAP signing</td><td>Prevents unsafe unsigned LDAP binds.</td><td>Review Directory Service event warnings first.</td></tr><tr><td>LDAPS</td><td>Encrypts LDAP traffic.</td><td>Requires certificates.</td></tr><tr><td>Channel binding</td><td>Improves LDAPS bind security.</td><td>Learn after LDAPS works.</td></tr><tr><td>NTLM reduction</td><td>Reduces older authentication dependency.</td><td>Audit before enforcing.</td></tr><tr><td>Least privilege</td><td>Avoid using Domain Admin for daily tasks.</td><td>Create a normal admin group and delegate.</td></tr><tr><td>LAPS / Windows LAPS</td><td>Controls local admin passwords.</td><td>Learn after GPO basics.</td></tr><tr><td>Firewall profiles</td><td>Understand Domain/Private/Public.</td><td><code>Get-NetFirewallProfile</code></td></tr></tbody></table></div>
+<h3>Useful security visibility commands</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-EventLog -LogName Security -Newest 20
+Get-WinEvent -LogName &quot;Directory Service&quot; -MaxEvents 20
+Get-ADDefaultDomainPasswordPolicy
+Get-ADUser -Filter * -Properties PasswordLastSet,Enabled | Select Name,Enabled,PasswordLastSet
+Get-ADGroupMember &quot;Domain Admins&quot;</code></pre>
+</section>
+<section class="chapter" id="24-command-library"><a class="toplink" href="#top">Back to top</a><h2>24. Command library</h2>
+<h3>Server identity</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">hostname
+Rename-Computer -NewName &quot;DC01&quot; -Restart
+Get-ComputerInfo | Select CsName,WindowsProductName,WindowsVersion,OsHardwareAbstractionLayer</code></pre>
+<h3>Networking</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-NetAdapter
+Get-NetIPConfiguration
+Get-DnsClientServerAddress
+New-NetIPAddress -InterfaceAlias &quot;Ethernet&quot; -IPAddress 10.10.10.10 -PrefixLength 24
+Set-DnsClientServerAddress -InterfaceAlias &quot;Ethernet&quot; -ServerAddresses 127.0.0.1
+ipconfig /all
+ipconfig /flushdns
+ipconfig /registerdns
+route print
+Test-NetConnection 10.10.10.10 -Port 389</code></pre>
+<h3>AD DS</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Install-WindowsFeature AD-Domain-Services,DNS -IncludeManagementTools
+Install-ADDSForest -DomainName &quot;josh.lab&quot; -DomainNetbiosName &quot;JOSHLAB&quot; -InstallDNS -Force
+Get-ADDomain
+Get-ADForest
+Get-ADDomainController
+Get-ADDomainController -Discover</code></pre>
+<h3>Health</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">dcdiag /q
+dcdiag /c /v
+dcdiag /test:dns /v
+dcdiag /test:dfsrevent /v
+repadmin /replsummary
+repadmin /showrepl
+Get-Service ADWS,KDC,Netlogon,DNS,DFSR
+Get-SmbShare SYSVOL,NETLOGON</code></pre>
+<h3>Users and groups</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">New-ADUser -Name &quot;Test User&quot; -SamAccountName testuser -UserPrincipalName testuser@josh.lab -AccountPassword (Read-Host -AsSecureString &quot;Password&quot;) -Enabled $true
+Get-ADUser testuser -Properties *
+Set-ADAccountPassword testuser -Reset -NewPassword (Read-Host -AsSecureString &quot;New password&quot;)
+Unlock-ADAccount testuser
+New-ADGroup -Name &quot;Lab Share Users&quot; -GroupScope Global -GroupCategory Security
+Add-ADGroupMember &quot;Lab Share Users&quot; testuser
+Get-ADGroupMember &quot;Lab Share Users&quot;</code></pre>
+<h3>Domain join and trust</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Add-Computer -DomainName josh.lab -Credential JOSHLAB\\Administrator -Restart
+Remove-Computer -UnjoinDomainCredential JOSHLAB\\Administrator -WorkgroupName WORKGROUP -Restart
+Test-ComputerSecureChannel -Verbose
+Test-ComputerSecureChannel -Repair -Credential JOSHLAB\\Administrator
+nltest /dsgetdc:josh.lab
+nltest /sc_query:josh.lab</code></pre>
+<h3>Group Policy</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Import-Module GroupPolicy
+Get-GPO -All
+New-GPO -Name &quot;Lab - Test&quot;
+New-GPLink -Name &quot;Lab - Test&quot; -Target &quot;OU=Computers,OU=Lab,DC=josh,DC=lab&quot;
+gpupdate /force
+gpresult /r
+gpresult /h C:\Temp\gpresult.html
+rsop.msc</code></pre>
+<h3>Remote Desktop and WinRM</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Set-ItemProperty -Path &quot;HKLM:\System\CurrentControlSet\Control\Terminal Server&quot; -Name &quot;fDenyTSConnections&quot; -Value 0
+Enable-NetFirewallRule -DisplayGroup &quot;Remote Desktop&quot;
+Test-NetConnection &lt;IP&gt; -Port 3389
+Enable-PSRemoting -Force
+Test-WSMan &lt;ComputerName&gt;
+Enter-PSSession &lt;ComputerName&gt; -Credential JOSHLAB\\Administrator</code></pre>
+<h3>Exchange defensive checks later</h3>
+<pre><button class="copy">Copy</button><code class="language-powershell">Get-Service *Exchange*
+Test-Path &quot;C:\Program Files\Microsoft\Exchange Server\V15&quot;
+Get-Command ExSetup.exe -ErrorAction SilentlyContinue
+Get-Service MSExchangeMitigation
+Get-ExchangeServer | Format-List Name,MitigationsEnabled,MitigationsApplied,MitigationsBlocked</code></pre>
+</section>
+<section class="chapter" id="25-glossary"><a class="toplink" href="#top">Back to top</a><h2>25. Glossary</h2>
+<div class="table-wrap"><table><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody><tr><td>AD DS</td><td>Active Directory Domain Services. The identity system for users, computers and groups.</td></tr><tr><td>DC</td><td>Domain Controller. Server that hosts AD DS.</td></tr><tr><td>DNS</td><td>Name resolution. AD depends on DNS heavily.</td></tr><tr><td>KDC</td><td>Kerberos Key Distribution Center. Handles Kerberos tickets for domain auth.</td></tr><tr><td>SYSVOL</td><td>Domain share containing Group Policy and scripts.</td></tr><tr><td>NETLOGON</td><td>Domain logon share.</td></tr><tr><td>DFSR</td><td>DFS Replication. Replicates SYSVOL between domain controllers.</td></tr><tr><td>OU</td><td>Organizational Unit. Container for users/computers/groups and GPO links.</td></tr><tr><td>GPO</td><td>Group Policy Object. Settings applied to users or computers.</td></tr><tr><td>SPN</td><td>Service Principal Name. Used by Kerberos to identify services.</td></tr><tr><td>RDP</td><td>Remote Desktop Protocol.</td></tr><tr><td>OWA</td><td>Outlook Web Access / Outlook on the web for Exchange Server.</td></tr><tr><td>Exchange member server</td><td>A domain-joined server running Exchange, separate from the DC.</td></tr><tr><td>NAT</td><td>VirtualBox network mode giving guest outbound internet but isolating inbound access.</td></tr><tr><td>Bridged</td><td>VirtualBox network mode where the VM appears on the same LAN as the host.</td></tr><tr><td>Internal Network</td><td>VirtualBox private VM-to-VM network on the same host.</td></tr><tr><td>Host-only</td><td>VirtualBox network between host and guests.</td></tr></tbody></table></div>
+</section>
+<section class="chapter" id="26-final-recommended-next-actions"><a class="toplink" href="#top">Back to top</a><h2>26. Final recommended next actions</h2>
+<h3>Do next</h3>
+<ol>
+<li>Create CLIENT01 as Windows 10 Pro 22H2 x64.</li>
+<li>Put DC01 and CLIENT01 on <code>JoshLab-Internal</code>.</li>
+<li>Set DC01 static IP to <code>10.10.10.10</code> and DNS to <code>127.0.0.1</code>.</li>
+<li>Set CLIENT01 static IP to <code>10.10.10.20</code> and DNS to <code>10.10.10.10</code>.</li>
+<li>Run connectivity tests from CLIENT01.</li>
+<li>Join CLIENT01 to <code>josh.lab</code>.</li>
+<li>Log in as <code>JOSHLAB\testuser</code>.</li>
+<li>Test a share and a simple GPO.</li>
+<li>Snapshot the clean working state.</li>
+</ol>
+<h3>Do not do yet</h3>
+<ul>
+<li>Do not install Exchange on DC01 to save RAM.</li>
+<li>Do not try OWA CVE testing until Exchange/OWA actually exists.</li>
+<li>Do not join the DCS ProBook host to your lab domain.</li>
+<li>Do not run exploit payloads or crafted OWA exploit emails.</li>
+</ul>
+<h3>One-line success definition</h3>
+<pre><button class="copy">Copy</button><code class="language-text">CLIENT01 joins josh.lab, testuser logs in, gpresult shows domain policy, and \\DC01\LabShare opens successfully.</code></pre>
+</section>
+<section class="chapter" id="references"><a class="toplink" href="#top">Back to top</a><h2>References</h2><ol><li><a href="https://www.microsoft.com/software-download/windows10">Microsoft - Windows 10 download / ISO creation</a><br><span class="url">https://www.microsoft.com/software-download/windows10</span></li><li><a href="https://support.microsoft.com/en-us/windows/create-installation-media-for-windows-99a58364-8c02-206f-aa6f-40c3b507420d">Microsoft Support - create Windows installation media</a><br><span class="url">https://support.microsoft.com/en-us/windows/create-installation-media-for-windows-99a58364-8c02-206f-aa6f-40c3b507420d</span></li><li><a href="https://learn.microsoft.com/en-us/powershell/module/addsdeployment/install-addsforest">Microsoft Learn - Install-ADDSForest PowerShell cmdlet</a><br><span class="url">https://learn.microsoft.com/en-us/powershell/module/addsdeployment/install-addsforest</span></li><li><a href="https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/deploy/install-active-directory-domain-services--level-100-">Microsoft Learn - install Active Directory Domain Services</a><br><span class="url">https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/deploy/install-active-directory-domain-services--level-100-</span></li><li><a href="https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/add-computer">Microsoft Learn - Add-Computer PowerShell cmdlet</a><br><span class="url">https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/add-computer</span></li><li><a href="https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/join-computer-to-domain">Microsoft Learn - join a computer to a domain</a><br><span class="url">https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/join-computer-to-domain</span></li><li><a href="https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/test-computersecurechannel">Microsoft Learn - Test-ComputerSecureChannel</a><br><span class="url">https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/test-computersecurechannel</span></li><li><a href="https://www.virtualbox.org/manual/ch06.html">Oracle VirtualBox Manual - virtual networking</a><br><span class="url">https://www.virtualbox.org/manual/ch06.html</span></li><li><a href="https://learn.microsoft.com/en-us/exchange/plan-and-deploy/system-requirements">Microsoft Learn - Exchange Server 2019 and SE system requirements</a><br><span class="url">https://learn.microsoft.com/en-us/exchange/plan-and-deploy/system-requirements</span></li><li><a href="https://learn.microsoft.com/en-us/exchange/plan-and-deploy/supportability-matrix">Microsoft Learn - Exchange Server supportability matrix</a><br><span class="url">https://learn.microsoft.com/en-us/exchange/plan-and-deploy/supportability-matrix</span></li><li><a href="https://learn.microsoft.com/en-us/exchange/plan-and-deploy/prerequisites">Microsoft Learn - Exchange Server 2019 and SE prerequisites</a><br><span class="url">https://learn.microsoft.com/en-us/exchange/plan-and-deploy/prerequisites</span></li><li><a href="https://learn.microsoft.com/en-us/exchange/plan-and-deploy/prepare-ad-and-domains">Microsoft Learn - prepare Active Directory and domains for Exchange</a><br><span class="url">https://learn.microsoft.com/en-us/exchange/plan-and-deploy/prepare-ad-and-domains</span></li><li><a href="https://learn.microsoft.com/en-us/exchange/plan-and-deploy/post-installation-tasks/security-best-practices/exchange-emergency-mitigation-service">Microsoft Learn - Exchange Emergency Mitigation Service</a><br><span class="url">https://learn.microsoft.com/en-us/exchange/plan-and-deploy/post-installation-tasks/security-best-practices/exchange-emergency-mitigation-service</span></li></ol></section>
+<div class="footer">Generated as a lab reference. Use official vendor documentation for production changes and current Exchange prerequisites.</div>
+</div>
+</main>
+</div>
+<script>
+(function(){
+  const search = document.getElementById('search');
+  if (search) {
+    search.addEventListener('input', function(){
+      const q = this.value.trim().toLowerCase();
+      document.querySelectorAll('.nav a').forEach(a => {
+        a.style.display = !q || a.dataset.title.includes(q) ? 'block' : 'none';
+      });
+    });
+  }
+  document.querySelectorAll('button.copy').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const code = btn.parentElement.querySelector('code').innerText;
+      try { await navigator.clipboard.writeText(code); btn.textContent = 'Copied'; setTimeout(()=>btn.textContent='Copy', 1200); }
+      catch(e) { btn.textContent = 'Select'; }
+    });
+  });
+})();
+</script>
+</body>
+</html>
