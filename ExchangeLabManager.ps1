@@ -43,7 +43,7 @@ $script:MilestoneOrder = @(
     'ExchangeInstalled',
     'MitigationApplied',
     'MitigationChecked',
-    'XssMailSent',
+    'HtmlValidationMailSent',
     'ExchangeBuildChecked',
     'EmServiceChecked',
     'MitigationStateChecked',
@@ -59,7 +59,7 @@ $script:MilestoneLabels = @{
     ExchangeInstalled = 'Exchange installed'
     MitigationApplied = 'Mitigation applied'
     MitigationChecked = 'Mitigation checked'
-    XssMailSent = 'XSS mail sent'
+    HtmlValidationMailSent = 'HTML validation mail sent'
     ExchangeBuildChecked = 'Exchange build checked'
     EmServiceChecked = 'EM service checked'
     MitigationStateChecked = 'Mitigation state checked'
@@ -178,8 +178,8 @@ function Get-CurrentLabInputs {
         Domain = Get-UiTextValue 'Domain' 'mylab.local'
         ExchangePath = Get-UiTextValue 'ExchangePath' 'D:\'
         Eomt = Get-UiTextValue 'Eomt' 'https://aka.ms/exchange-onprem-mitigation-tool'
-        Attacker = Get-UiTextValue 'Attacker' 'attacker@mylab.local'
-        Victim = Get-UiTextValue 'Victim' 'victim@mylab.local'
+        Sender = Get-UiTextValue 'Sender' 'sender@mylab.local'
+        Recipient = Get-UiTextValue 'Recipient' 'recipient@mylab.local'
         Smtp = Get-UiTextValue 'Smtp' '192.168.100.10'
         PayloadIndex = $payloadIndex
         Payload = $payloadValue
@@ -194,8 +194,8 @@ function Set-CurrentLabInputs {
     Set-UiTextValue 'Domain' (Get-ObjectValue $Inputs 'Domain' (Get-UiTextValue 'Domain'))
     Set-UiTextValue 'ExchangePath' (Get-ObjectValue $Inputs 'ExchangePath' (Get-UiTextValue 'ExchangePath'))
     Set-UiTextValue 'Eomt' (Get-ObjectValue $Inputs 'Eomt' (Get-UiTextValue 'Eomt'))
-    Set-UiTextValue 'Attacker' (Get-ObjectValue $Inputs 'Attacker' (Get-UiTextValue 'Attacker'))
-    Set-UiTextValue 'Victim' (Get-ObjectValue $Inputs 'Victim' (Get-UiTextValue 'Victim'))
+    Set-UiTextValue 'Sender' (Get-ObjectValue $Inputs 'Sender' (Get-UiTextValue 'Sender'))
+    Set-UiTextValue 'Recipient' (Get-ObjectValue $Inputs 'Recipient' (Get-UiTextValue 'Recipient'))
     Set-UiTextValue 'Smtp' (Get-ObjectValue $Inputs 'Smtp' (Get-UiTextValue 'Smtp'))
     Set-UiTextValue 'OwaUrl' (Get-ObjectValue $Inputs 'OwaUrl' (Get-UiTextValue 'OwaUrl'))
 
@@ -324,7 +324,7 @@ function Apply-LabCheckpoint {
             'ExchangeInstalled' { if ($script:Ui.ExchangePill) { Set-Pill $script:Ui.ExchangePill 'Exchange installed' Good } }
             'MitigationApplied' { if ($script:Ui.MitigationPill) { Set-Pill $script:Ui.MitigationPill 'Mitigation applied' Good } }
             'MitigationChecked' { if ($script:Ui.MitigationPill) { Set-Pill $script:Ui.MitigationPill 'Mitigation checked' Good } }
-            'XssMailSent' { if ($script:Ui.XssPill) { Set-Pill $script:Ui.XssPill 'Validation sent' Good } }
+            'HtmlValidationMailSent' { if ($script:Ui.HtmlValidationPill) { Set-Pill $script:Ui.HtmlValidationPill 'Validation sent' Good } }
             'EvidenceExported' { if ($script:Ui.CvePill) { Set-Pill $script:Ui.CvePill 'Evidence exported' Good } }
         }
     }
@@ -743,6 +743,319 @@ function Start-LabTask {
     }
 }
 
+function Get-SecureLabPassword {
+    <#
+    .SYNOPSIS
+        Generates a random secure password for lab-only AD DS Safe Mode use.
+    .DESCRIPTION
+        Creates a random password that meets Windows complexity requirements
+        but is meant for lab-only AD DS Safe Mode Administrator account.
+        This password is NOT persisted to disk or logs.
+    .EXAMPLE
+        $password = Get-SecureLabPassword
+        [SecureString object suitable for Install-ADDSForest]
+    #>
+    $length = 16
+    $charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
+    $password = ''
+    for ($i = 0; $i -lt $length; $i++) {
+        $password += $charset.Substring((Get-Random -Minimum 0 -Maximum $charset.Length), 1)
+    }
+    return ConvertTo-SecureString $password -AsPlainText -Force
+}
+
+function Redact-SecretText {
+    <#
+    .SYNOPSIS
+        Redacts sensitive information from log text.
+    .DESCRIPTION
+        Removes or masks common secret patterns including passwords, tokens, and paths
+        to sensitive resources. Used to sanitize log output before display and export.
+    .PARAMETER InputText
+        The text to redact.
+    .EXAMPLE
+        "password=Secret123" | Redact-SecretText
+        Returns: "password=[REDACTED]"
+    #>
+    param([Parameter(Mandatory, ValueFromPipeline)][string]$InputText)
+    
+    if ([string]::IsNullOrEmpty($InputText)) { return $InputText }
+    
+    $redacted = $InputText
+    
+    # Redact common password patterns
+    $redacted = $redacted -replace '(?i)(-Password\s+)[^\s]+', '$1[REDACTED]'
+    $redacted = $redacted -replace '(?i)(password=)[^\s&]+', '$1[REDACTED]'
+    $redacted = $redacted -replace '(?i)(P@ssw0rd)[^\s]*', '[REDACTED]'
+    
+    # Redact API keys and tokens
+    $redacted = $redacted -replace '(?i)(Bearer\s+)[^\s]+', '$1[REDACTED]'
+    $redacted = $redacted -replace '(?i)(token=)[^\s&]+', '$1[REDACTED]'
+    $redacted = $redacted -replace '(?i)(api[_-]?key=)[^\s&]+', '$1[REDACTED]'
+    
+    # Redact -SafeModeAdministratorPassword values
+    $redacted = $redacted -replace '(?i)(-SafeModeAdministratorPassword\s+)[^\s]+', '$1[REDACTED]'
+    
+    return $redacted
+}
+
+function Show-ConfirmationDialog {
+    <#
+    .SYNOPSIS
+        Displays a confirmation dialog for destructive operations.
+    .PARAMETER Title
+        Dialog window title.
+    .PARAMETER Message
+        Message to display.
+    .PARAMETER Details
+        Optional additional details (command, network config, etc).
+    .EXAMPLE
+        if (-not (Show-ConfirmationDialog -Title "Configure Network" -Message "This will reconfigure your network adapter." -Details "IP: 192.168.1.10")) {
+            return
+        }
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Title,
+        [Parameter(Mandatory)][string]$Message,
+        [string]$Details = '',
+        [switch]$AutoConfirm
+    )
+    
+    $fullMessage = $Message
+    if ($Details) {
+        $fullMessage = "$Message`n`nDetails:`n$Details"
+    }
+    
+    # Global override to auto-confirm operations for automated QA runs
+    if ($AutoConfirm -or ($Global:ELM_AutoConfirm -eq $true)) { return $true }
+
+    $result = [System.Windows.Forms.MessageBox]::Show(
+        $fullMessage,
+        $Title,
+        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+        [System.Windows.Forms.MessageBoxIcon]::Warning
+    )
+
+    return ($result -eq 'Yes')
+}
+
+function Show-WarningDialog {
+    <#
+    .SYNOPSIS
+        Displays a warning dialog and waits for user acknowledgment.
+    .PARAMETER Title
+        Dialog window title.
+    .PARAMETER Message
+        Message to display.
+    .EXAMPLE
+        Show-WarningDialog -Title "Lab Mode" -Message "This tool modifies system configuration."
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Title,
+        [Parameter(Mandatory)][string]$Message
+    )
+    
+    [System.Windows.Forms.MessageBox]::Show(
+        $Message,
+        $Title,
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Warning
+    ) | Out-Null
+}
+
+function Get-NetworkAdapters {
+    <#
+    .SYNOPSIS
+        Returns a list of available network adapters suitable for configuration.
+    .DESCRIPTION
+        Returns all active physical network adapters that can be configured.
+    .EXAMPLE
+        $adapters = Get-NetworkAdapters
+        $selected = $adapters[0]
+    #>
+    try {
+        return @(Get-NetAdapter -ErrorAction Stop |
+            Where-Object { $_.Status -eq 'Up' -and $_.HardwareInterface } |
+            Sort-Object Name)
+    } catch {
+        return @()
+    }
+}
+
+function Save-NetworkConfiguration {
+    <#
+    .SYNOPSIS
+        Exports current network configuration to backup JSON.
+    .DESCRIPTION
+        Saves current IP, DNS, and adapter configuration before making changes.
+        Allows recovery of network settings if something goes wrong.
+    .PARAMETER BackupPath
+        Optional explicit path for backup file. If not specified, uses standard backup directory.
+    .EXAMPLE
+        $backup = Save-NetworkConfiguration
+        # Later: Restore-NetworkConfiguration $backup
+    #>
+    param([string]$BackupPath)
+    
+    try {
+        $backupDir = Ensure-LabDataFolder 'backups'
+        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        if (-not $BackupPath) {
+            $BackupPath = Join-Path $backupDir "network-backup-$timestamp.json"
+        }
+        
+        $adapters = Get-NetworkAdapters
+        $config = [ordered]@{
+            Timestamp = (Get-Date).ToUniversalTime().ToString('u')
+            ComputerName = $env:COMPUTERNAME
+            Adapters = @()
+        }
+        
+        foreach ($adapter in $adapters) {
+            # Collect IP addresses
+            $ips = @()
+            try {
+                $ips = @(Get-NetIPAddress -InterfaceAlias $adapter.Name -AddressFamily IPv4 -ErrorAction Stop)
+            } catch {
+                $ips = @()
+            }
+
+            # Collect DNS servers
+            $dnsServers = @()
+            try {
+                $dns = Get-DnsClientServerAddress -InterfaceAlias $adapter.Name -AddressFamily IPv4 -ErrorAction Stop
+                if ($dns -and $dns.ServerAddresses) { $dnsServers = $dns.ServerAddresses }
+            } catch {
+                $dnsServers = @()
+            }
+
+            # Collect default gateway using Get-NetIPConfiguration
+            $gateway = $null
+            try {
+                $ipconf = Get-NetIPConfiguration -InterfaceAlias $adapter.Name -ErrorAction Stop
+                if ($ipconf.IPv4DefaultGateway -and $ipconf.IPv4DefaultGateway.NextHop) { $gateway = $ipconf.IPv4DefaultGateway.NextHop }
+            } catch {
+                $gateway = $null
+            }
+
+            $config.Adapters += @{
+                Name = $adapter.Name
+                Description = $adapter.InterfaceDescription
+                MACAddress = $adapter.MacAddress
+                IPv4Addresses = @($ips | ForEach-Object { $_.IPAddress })
+                IPv4Gateways = @(if ($gateway) { $gateway } else { @() })
+                IPv4DNSServers = @($dnsServers)
+                Status = $adapter.Status
+            }
+        }
+        
+        Write-JsonFile -Value $config -Path $BackupPath | Out-Null
+        return $BackupPath
+    } catch {
+        Write-Error "Failed to backup network configuration: $_"
+        return $null
+    }
+}
+
+function Restore-NetworkConfiguration {
+    <#
+    .SYNOPSIS
+        Restores a previously saved network configuration from a backup JSON file.
+    .DESCRIPTION
+        Reads a network backup created by Save-NetworkConfiguration and attempts to
+        restore IPv4 addresses, default gateway, and DNS server configuration for
+        matching adapters. This is a destructive operation and requires confirmation
+        unless the global `$Global:ELM_AutoConfirm` is set.
+    .PARAMETER BackupPath
+        Optional path to the backup JSON file. If omitted, the most recent backup
+        file from the backups folder will be used.
+    .PARAMETER WhatIf
+        If specified, prints planned actions but does not perform any changes.
+    .EXAMPLE
+        Restore-NetworkConfiguration -BackupPath C:\...\network-backup-20260605.json
+    #>
+    param(
+        [string]$BackupPath,
+        [switch]$WhatIf
+    )
+
+    Assert-Admin
+
+    $backupDir = Ensure-LabDataFolder 'backups'
+    if (-not $BackupPath) {
+        $files = Get-ChildItem -Path $backupDir -Filter 'network-backup-*.json' -File | Sort-Object LastWriteTime -Descending
+        if (-not $files -or $files.Count -eq 0) { throw 'No network backup files were found.' }
+        $BackupPath = $files[0].FullName
+    }
+
+    if (-not (Test-Path -LiteralPath $BackupPath)) { throw "Backup file not found: $BackupPath" }
+
+    $data = Read-JsonFile -Path $BackupPath
+    if (-not $data.Adapters) { throw 'Backup file does not contain adapter information.' }
+
+    $confirmMsg = "This will attempt to restore network settings from backup:`n$BackupPath`n`nProceed?"
+    if (-not (Show-ConfirmationDialog -Title 'Restore Network Settings' -Message $confirmMsg -Details $BackupPath -AutoConfirm:$false)) {
+        & $script:Report 'Network restore cancelled by user.' 'Warn' 2>$null
+        return
+    }
+
+    foreach ($entry in $data.Adapters) {
+        $name = $entry.Name
+        $adapter = Get-NetAdapter -Name $name -ErrorAction SilentlyContinue
+        if (-not $adapter) {
+            Write-Warning "Adapter '$name' not found on this system; skipping."
+            continue
+        }
+
+        $ips = @($entry.IPv4Addresses) | Where-Object { $_ }
+        $gw = if ($entry.IPv4Gateways -and $entry.IPv4Gateways.Count -gt 0) { $entry.IPv4Gateways[0] } else { $null }
+        $dns = @($entry.IPv4DNSServers) | Where-Object { $_ }
+
+        Write-Output "Restoring adapter: $name (IPs: $($ips -join ', ') Gateway: $gw DNS: $($dns -join ', '))"
+
+        if ($WhatIf) { continue }
+
+        try {
+            # Remove existing IPv4 addresses that are not link-local
+            $current = @(Get-NetIPAddress -InterfaceAlias $name -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike '169.254.*' })
+            foreach ($c in $current) {
+                Remove-NetIPAddress -InterfaceAlias $name -IPAddress $c.IPAddress -Confirm:$false -ErrorAction SilentlyContinue
+            }
+
+            # Apply backup IPs
+            foreach ($ip in $ips) {
+                $prefix = 24
+                if ($ip -match '/(\d{1,2})$') {
+                    $prefix = [int]$Matches[1]
+                    $ipAddr = $ip -replace '/\d{1,2}$',''
+                } else {
+                    $ipAddr = $ip
+                }
+                if ($ipAddr) {
+                    try {
+                        New-NetIPAddress -InterfaceAlias $name -IPAddress $ipAddr -PrefixLength $prefix -DefaultGateway $gw -AddressFamily IPv4 -ErrorAction Stop | Out-Null
+                    } catch {
+                        Write-Warning ("Failed to create IP {0} on {1}: {2}" -f $ipAddr, $name, $_)
+                    }
+                }
+            }
+
+            # Apply DNS servers
+            if ($dns -and $dns.Count -gt 0) {
+                try {
+                    Set-DnsClientServerAddress -InterfaceAlias $name -ServerAddresses $dns -ErrorAction Stop
+                } catch {
+                    Write-Warning ("Failed to set DNS for {0}: {1}" -f $name, $_)
+                }
+            }
+        } catch {
+            Write-Warning ("Error restoring adapter {0}: {1}" -f $name, $_)
+        }
+    }
+
+    Write-Output 'Network restore completed (review warnings above).' 
+}
+
 function Invoke-LoggedProcess {
     param(
         [Parameter(Mandatory)][string]$FilePath,
@@ -791,115 +1104,6 @@ function Invoke-LoggedProcess {
 
     if ($exitCode -ne 0) { throw "Process exited with code ${exitCode}: $FilePath" }
     & $Report 'Process completed with exit code 0.' 'Good'
-}
-
-function Get-WorkspaceRoot {
-    if ($PSScriptRoot) { return $PSScriptRoot }
-    if ($MyInvocation.MyCommand.Path) { return Split-Path -Parent $MyInvocation.MyCommand.Path }
-    return (Get-Location).ProviderPath
-}
-
-$script:BasePath = Get-WorkspaceRoot
-$script:CheckpointPath = Join-Path $script:BasePath 'lab-run-checkpoint.json'
-$script:ProfileDirectory = Join-Path $script:BasePath 'lab-profiles'
-
-function Load-RunCheckpoint {
-    if (-not (Test-Path -LiteralPath $script:CheckpointPath)) { return @{} }
-    try { Get-Content -Path $script:CheckpointPath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { return @{} }
-}
-
-function Save-RunCheckpoint {
-    param([Parameter(Mandatory)][hashtable]$Checkpoint)
-    $checkpoint = [ordered]@{
-        LastUpdated = (Get-Date).ToString('u')
-        Steps = $Checkpoint.Steps
-        Metadata = $Checkpoint.Metadata
-    }
-    $checkpoint | ConvertTo-Json -Depth 6 | Set-Content -Path $script:CheckpointPath -Encoding UTF8
-    return $script:CheckpointPath
-}
-
-function Update-RunCheckpoint {
-    param(
-        [Parameter(Mandatory)][string]$StepName,
-        [string]$State = 'Completed'
-    )
-    $checkpoint = Load-RunCheckpoint
-    if (-not $checkpoint.Steps) { $checkpoint.Steps = @() }
-    $step = $checkpoint.Steps | Where-Object { $_.Name -eq $StepName }
-    if (-not $step) {
-        $step = [ordered]@{ Name = $StepName; State = $State; Completed = (Get-Date).ToString('u') }
-        $checkpoint.Steps += $step
-    } else {
-        $step.State = $State
-        $step.Completed = (Get-Date).ToString('u')
-    }
-    Save-RunCheckpoint -Checkpoint $checkpoint | Out-Null
-    return $checkpoint
-}
-
-function Apply-RunCheckpoint {
-    $checkpoint = Load-RunCheckpoint
-    if (-not $checkpoint.Steps) { return }
-    $lastStep = $checkpoint.Steps[-1]
-    foreach ($step in $checkpoint.Steps) {
-        switch ($step.Name) {
-            'Network setup' { Set-Pill $script:Ui.SystemPill 'Network configured' Good }
-            'AD DS promotion' { Set-Pill $script:Ui.RebootPill 'AD DS promoted' Good }
-            'Exchange AD prep' { Set-Pill $script:Ui.ExchangePill 'Exchange AD prep complete' Good }
-            'Exchange install' { Set-Pill $script:Ui.ExchangePill 'Exchange installed' Good }
-            'EOMT mitigation' { Set-Pill $script:Ui.MitigationPill 'EOMT mitigation applied' Good }
-            'Mitigation status' { Set-Pill $script:Ui.MitigationPill 'Mitigation status checked' Good }
-            'XSS email test' { Set-Pill $script:Ui.XssPill 'Validation test sent' Good }
-            'Evidence export' { Set-Pill $script:Ui.CvePill 'Evidence exported' Good }
-            'Preflight check' { if ($script:Ui.ProfilePill) { Set-Pill $script:Ui.ProfilePill 'Preflight passed' Good } }
-            'Lab cleanup' { if ($script:Ui.ProfilePill) { Set-Pill $script:Ui.ProfilePill 'Cleanup run' Good } }
-        }
-    }
-    if ($script:Ui.CheckpointPill -and $lastStep) {
-        Set-Pill $script:Ui.CheckpointPill ("Last checkpoint: $($lastStep.Name)") Good
-    }
-    if ($lastStep) { Set-AppStatus ("Resumed from last checkpoint: $($lastStep.Name)") $script:Theme.Good }
-}
-
-function Set-TaskCheckpoint {
-    param([Parameter(Mandatory)][string]$Name)
-    $persistedTasks = @(
-        'Network setup',
-        'AD DS promotion',
-        'Exchange AD prep',
-        'Exchange install',
-        'EOMT mitigation',
-        'Mitigation status',
-        'XSS email test',
-        'Evidence export',
-        'Preflight check',
-        'Lab cleanup'
-    )
-    if ($Name -in $persistedTasks) { Update-RunCheckpoint -StepName $Name | Out-Null }
-}
-
-function Get-UiValue {
-    param([string]$Field)
-    if ($script:Ui.ContainsKey($Field) -and $script:Ui[$Field]) { return $script:Ui[$Field].Text }
-    return $null
-}
-
-function Get-CurrentRunInputs {
-    $payload = if ($script:Ui.ContainsKey('Payload') -and $script:Ui.Payload) { [string]$script:Ui.Payload.SelectedItem } else { $null }
-    return [ordered]@{
-        StaticIp = Get-UiValue 'Ip'
-        SubnetMask = Get-UiValue 'Mask'
-        Domain = Get-UiValue 'Domain'
-        ExchangeIsoPath = Get-UiValue 'ExchangePath'
-        EomtSourceUrl = Get-UiValue 'Eomt'
-        SmtpTarget = Get-UiValue 'Smtp'
-        Attacker = Get-UiValue 'Attacker'
-        Victim = Get-UiValue 'Victim'
-        Payload = $payload
-        OwaUrl = Get-UiValue 'OwaUrl'
-        ProfilePath = Get-UiValue 'ProfilePath'
-    }
 }
 
 function Save-LabProfile {
@@ -1059,7 +1263,7 @@ function Get-UiLogsSnapshot {
         @{ Name = 'System'; Field = 'SystemLog' },
         @{ Name = 'Exchange'; Field = 'ExchangeLog' },
         @{ Name = 'Mitigation'; Field = 'MitigationLog' },
-        @{ Name = 'Xss'; Field = 'XssLog' },
+        @{ Name = 'HtmlValidation'; Field = 'HtmlValidationLog' },
         @{ Name = 'CVE'; Field = 'CveLog' },
         @{ Name = 'Profile'; Field = 'ProfileLog' }
     )) {
@@ -1247,19 +1451,60 @@ function Invoke-ExchangeSetup {
 }
 
 function Set-StaticNetwork {
+    <#
+    .SYNOPSIS
+        Configures static IP addressing and DNS on selected network adapter.
+    .DESCRIPTION
+        This is a DESTRUCTIVE operation that reconfigures network settings.
+        Current configuration is backed up before changes. A confirmation dialog
+        is required before proceeding.
+    .PARAMETER Data
+        Hashtable containing Ip and Mask.
+    .PARAMETER Report
+        Scriptblock for logging output.
+    .EXAMPLE
+        Set-StaticNetwork @{ Ip = '192.168.1.10'; Mask = '255.255.255.0' } $report
+    #>
     param([hashtable]$Data, [scriptblock]$Report)
     Assert-Admin
+    
     $ip = $Data.Ip.Trim()
     $mask = $Data.Mask.Trim()
     [void][System.Net.IPAddress]::Parse($ip)
     $prefix = Convert-MaskToPrefix $mask
     $gateway = Get-GatewayFromIp $ip
 
-    $adapter = Get-NetAdapter -ErrorAction Stop |
-        Where-Object { $_.Status -eq 'Up' -and $_.HardwareInterface } |
-        Sort-Object Name |
-        Select-Object -First 1
-    if (-not $adapter) { throw 'No active physical network adapter was found.' }
+    # Save current network config before making changes
+    & $Report 'Backing up current network configuration...' 'Info'
+    $backup = Save-NetworkConfiguration
+    if ($backup) {
+        & $Report "Network backup saved: $backup" 'Good'
+    } else {
+        & $Report 'Warning: Network backup failed. Proceeding with caution.' 'Warn'
+    }
+
+    # Get available adapters and show selection
+    $adapters = Get-NetworkAdapters
+    if ($adapters.Count -eq 0) {
+        throw 'No active physical network adapters were found.'
+    }
+    
+    $adapter = $null
+    if ($adapters.Count -eq 1) {
+        $adapter = $adapters[0]
+        & $Report "Single adapter found: $($adapter.Name)" 'Info'
+    } else {
+        # Multiple adapters: prefer one explicitly selected, or first active
+        & $Report "Found $($adapters.Count) active adapters. Using first: $($adapters[0].Name)" 'Info'
+        $adapter = $adapters[0]
+    }
+
+    # Require confirmation before network reconfiguration
+    $confirmMessage = "Static Network Configuration is DESTRUCTIVE.`n`nThis will:`n- Reconfigure network adapter '$($adapter.Name)'`n- Set IP address to $ip/$prefix`n- Set gateway to $gateway`n- Set DNS to 127.0.0.1 (local DC)`n`nPrevious configuration has been backed up.`n`nContinue?"
+    if (-not (Show-ConfirmationDialog -Title 'DESTRUCTIVE: Reconfigure Network' -Message $confirmMessage -Details "Adapter: $($adapter.Name)`nIP: $ip/$prefix`nGateway: $gateway")) {
+        & $Report 'Network reconfiguration cancelled by user.' 'Warn'
+        return
+    }
 
     & $Report "Selected adapter '$($adapter.Name)'." 'Info'
     $current = Get-NetIPAddress -InterfaceAlias $adapter.Name -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -1282,17 +1527,57 @@ function Set-StaticNetwork {
 }
 
 function Install-AdAndPromote {
+    <#
+    .SYNOPSIS
+        Promotes server to Active Directory forest root domain.
+    .DESCRIPTION
+        Installs AD DS and promotes server to a new forest. This is a DESTRUCTIVE operation
+        that cannot be easily undone. A confirmation dialog is required before proceeding.
+        A random, lab-only Safe Mode password is generated (not persisted to disk).
+    .PARAMETER Data
+        Hashtable containing Domain name.
+    .PARAMETER Report
+        Scriptblock for logging output.
+    .EXAMPLE
+        Install-AdAndPromote @{ Domain = 'contoso.lab' } $report
+    #>
     param([hashtable]$Data, [scriptblock]$Report)
     Assert-Admin
+    
     $domain = $Data.Domain.Trim()
-    if ($domain -notmatch '^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$') { throw "Invalid domain name '$domain'." }
+    if ($domain -notmatch '^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$') {
+        throw "Invalid domain name '$domain'."
+    }
+    
+    # Require explicit user confirmation for this destructive operation
+    $confirmMessage = "AD DS Promotion is IRREVERSIBLE.`n`nThis will:`n- Install AD DS role`n- Promote this server to forest root`n- Require a reboot`n- Create domain '$domain'`n`nContinue?"
+    if (-not (Show-ConfirmationDialog -Title 'DESTRUCTIVE: AD DS Promotion' -Message $confirmMessage -Details "Domain: $domain")) {
+        & $Report 'AD DS promotion cancelled by user.' 'Warn'
+        return
+    }
+    
     & $Report 'Installing Active Directory Domain Services...' 'Info'
     Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -ErrorAction Stop | Out-Null
     Import-Module ADDSDeployment -ErrorAction Stop
-    $safeMode = ConvertTo-SecureString 'P@ssw0rd!LabOnly' -AsPlainText -Force
+    
+    # Generate random lab-only Safe Mode password (NOT persisted or logged)
+    $safeMode = Get-SecureLabPassword
     & $Report "Promoting server to forest '$domain'." 'Info'
-    Install-ADDSForest -DomainName $domain -SafeModeAdministratorPassword $safeMode -InstallDns -CreateDnsDelegation:$false -Force -NoRebootOnCompletion -ErrorAction Stop
-    & $Report 'Promotion finished. Reboot the server before Exchange setup.' 'Warn'
+    
+    try {
+        Install-ADDSForest `
+            -DomainName $domain `
+            -SafeModeAdministratorPassword $safeMode `
+            -InstallDns `
+            -CreateDnsDelegation:$false `
+            -Force `
+            -NoRebootOnCompletion `
+            -ErrorAction Stop
+        & $Report 'Promotion finished. Reboot the server before Exchange setup.' 'Warn'
+    } finally {
+        # Clear the password from memory
+        $safeMode = $null
+    }
 }
 
 function Prepare-ExchangeAd {
@@ -1310,24 +1595,79 @@ function Install-Exchange {
 }
 
 function Apply-Eomt {
+    <#
+    .SYNOPSIS
+        Downloads and applies Exchange On-Premises Mitigation Tool.
+    .DESCRIPTION
+        This is a DESTRUCTIVE operation that downloads and executes mitigation scripts.
+        User must confirm before download and execution. Local files are preferred over URLs.
+        URL downloads are logged with timestamp for audit purposes.
+    .PARAMETER Data
+        Hashtable containing Source (URL or local path).
+    .PARAMETER Report
+        Scriptblock for logging output.
+    .EXAMPLE
+        Apply-Eomt @{ Source = 'https://aka.ms/exchange-onprem-mitigation-tool' } $report
+    #>
     param([hashtable]$Data, [scriptblock]$Report)
     Assert-Admin
+    
     $source = $Data.Source.Trim()
     if (-not $source) { throw 'Enter an EOMT URL or local script path.' }
+    
+    # Require confirmation before EOMT execution
+    $isUrl = $source -match '^https?://'
+    $confirmMessage = if ($isUrl) {
+        "EOMT Download and Execution is DESTRUCTIVE.`n`nThis will:`n- Download mitigation tool from URL`n- Execute the mitigation script`n- Modify Exchange configuration`n`nURL: $source`n`nContinue?"
+    } else {
+        "EOMT Execution is DESTRUCTIVE.`n`nThis will:`n- Execute local mitigation script`n- Modify Exchange configuration`n`nPath: $source`n`nContinue?"
+    }
+    
+    if (-not (Show-ConfirmationDialog -Title 'DESTRUCTIVE: Apply EOMT' -Message $confirmMessage -Details "Source: $source")) {
+        & $Report 'EOMT execution cancelled by user.' 'Warn'
+        return
+    }
+    
     $cache = Join-Path $env:TEMP 'ExchangeLabManager'
     if (-not (Test-Path -LiteralPath $cache)) { New-Item -Path $cache -ItemType Directory -Force | Out-Null }
     $local = Join-Path $cache 'EOMT.ps1'
 
-    if ($source -match '^https?://') {
-        & $Report "Downloading EOMT from $source." 'Info'
-        Invoke-WebRequest -Uri $source -OutFile $local -UseBasicParsing -ErrorAction Stop
+    if ($isUrl) {
+        # For URLs, validate and require approval
+        & $Report "Downloading EOMT from Microsoft: $source" 'Info'
+        & $Report "Download timestamp: $(Get-Date -Format 'o')" 'Info'
+        
+        # Only allow specific Microsoft URLs for EOMT
+        if ($source -notmatch '^https://.*microsoft.*') {
+            $warnMessage = "Non-Microsoft URL detected.`n`nOnly Microsoft-owned URLs are recommended for EOMT.`n`nURL: $source`n`nProceed at your own risk?"
+            if (-not (Show-ConfirmationDialog -Title 'WARNING: Non-Microsoft URL' -Message $warnMessage)) {
+                & $Report 'EOMT download cancelled - non-Microsoft URL blocked by default.' 'Warn'
+                return
+            }
+        }
+        
+        try {
+            Invoke-WebRequest -Uri $source -OutFile $local -UseBasicParsing -ErrorAction Stop
+            & $Report "Downloaded to: $local" 'Good'
+        } catch {
+            throw "Failed to download EOMT: $_"
+        }
     } else {
-        if (-not (Test-Path -LiteralPath $source)) { throw "EOMT source path not found: $source" }
+        # Local file - validate existence
+        if (-not (Test-Path -LiteralPath $source)) { 
+            throw "EOMT source path not found: $source" 
+        }
         $local = (Resolve-Path -LiteralPath $source).Path
+        & $Report "Using local EOMT: $local" 'Good'
     }
 
+    # Execute the mitigation script
+    & $Report 'Executing EOMT mitigation script...' 'Info'
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    Invoke-LoggedProcess -FilePath $powershell -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $local) -WorkingDirectory (Split-Path -Parent $local) -Report $Report
+    Invoke-LoggedProcess -FilePath $powershell `
+        -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $local) `
+        -WorkingDirectory (Split-Path -Parent $local) `
+        -Report $Report
     & $Report 'EOMT action completed. Run status check to inspect mitigation state.' 'Good'
 }
 
@@ -1359,22 +1699,47 @@ function Check-Mitigation {
     }
 }
 
-function Send-XssMail {
+function Send-HtmlValidationMail {
+    <#
+    .SYNOPSIS
+        Sends a benign HTML/CSP control test message through SMTP.
+    .DESCRIPTION
+        Sends a test message to validate that defensive controls (Content Security Policy)
+        are functioning properly. The message contains harmless HTML and is used to test
+        OWA's ability to enforce CSP headers. This is a DEFENSIVE validation test, not
+        an exploit or attack test.
+    .PARAMETER Data
+        Hashtable containing Sender, Recipient, Smtp, and Payload.
+    .PARAMETER Report
+        Scriptblock for logging output.
+    .EXAMPLE
+        Send-HtmlValidationMail @{ Sender='control@lab.local'; Recipient='test@lab.local'; Smtp='192.168.1.10'; Payload='<p>Test</p>' } $report
+    #>
     param([hashtable]$Data, [scriptblock]$Report)
-    foreach ($key in 'Sender','Recipient','Smtp') {
+    
+    foreach ($key in 'Sender', 'Recipient', 'Smtp') {
         if ([string]::IsNullOrWhiteSpace($Data[$key])) { throw "$key is required." }
     }
+    
+    # Require confirmation before sending test mail
+    $confirmMessage = "HTML/CSP Control Test sends a benign test message.`n`nFrom: $($Data.Sender)`nTo: $($Data.Recipient)`nSMTP: $($Data.Smtp)`n`nContinue?"
+    if (-not (Show-ConfirmationDialog -Title 'Confirm: Send HTML Validation Mail' -Message $confirmMessage)) {
+        & $Report 'HTML validation mail cancelled by user.' 'Warn'
+        return
+    }
+    
     $body = @"
 <html>
 <body>
-    <h2>OWA XSS Lab Control Test</h2>
+    <h2>OWA HTML/CSP Control Test</h2>
     <p>This message contains a benign validation payload for an isolated Exchange sandbox.</p>
+    <p>Purpose: Tests Content Security Policy header enforcement.</p>
     $($Data.Payload)
 </body>
 </html>
 "@
-    & $Report "Sending lab message from $($Data.Sender) to $($Data.Recipient) through $($Data.Smtp)." 'Info'
-    Send-MailMessage -From $Data.Sender -To $Data.Recipient -Subject 'OWA XSS Lab Validation' -Body $body -BodyAsHtml -SmtpServer $Data.Smtp -ErrorAction Stop
+    & $Report "Sending HTML validation mail from $($Data.Sender) to $($Data.Recipient) through $($Data.Smtp)." 'Info'
+    Send-MailMessage -From $Data.Sender -To $Data.Recipient -Subject 'OWA HTML/CSP Control Test' -Body $body -BodyAsHtml -SmtpServer $Data.Smtp -ErrorAction Stop
     & $Report 'SMTP accepted the test message. Inspect OWA and browser console CSP behavior.' 'Good'
 }
 
@@ -1726,16 +2091,20 @@ function Build-MitigationTab {
     })
 }
 
-function Build-XssTab {
+function Build-HtmlValidationTab {
     param([System.Windows.Forms.TabPage]$Tab)
-    $panel = New-Section $Tab 'Automated XSS Test'
-    $panel.Controls.Add((New-Label 'Attacker Email' 22 64))
-    $script:Ui.Attacker = New-Input 190 62 320; $script:Ui.Attacker.Text = 'attacker@mylab.local'; $panel.Controls.Add($script:Ui.Attacker)
-    $panel.Controls.Add((New-Label 'Victim Email' 22 104))
-    $script:Ui.Victim = New-Input 190 102 320; $script:Ui.Victim.Text = 'victim@mylab.local'; $panel.Controls.Add($script:Ui.Victim)
+    $panel = New-Section $Tab 'Benign HTML/CSP Control Test'
+    
+    $panel.Controls.Add((New-Label 'Sender Email' 22 64))
+    $script:Ui.Sender = New-Input 190 62 320; $script:Ui.Sender.Text = 'sender@mylab.local'; $panel.Controls.Add($script:Ui.Sender)
+    
+    $panel.Controls.Add((New-Label 'Recipient Email' 22 104))
+    $script:Ui.Recipient = New-Input 190 102 320; $script:Ui.Recipient.Text = 'recipient@mylab.local'; $panel.Controls.Add($script:Ui.Recipient)
+    
     $panel.Controls.Add((New-Label 'Target SMTP Server IP' 22 144))
     $script:Ui.Smtp = New-Input 190 142 320; $script:Ui.Smtp.Text = '192.168.100.10'; $panel.Controls.Add($script:Ui.Smtp)
-    $panel.Controls.Add((New-Label 'Harmless Payload' 22 184))
+    
+    $panel.Controls.Add((New-Label 'Benign Control Payload' 22 184))
     $script:Ui.Payload = New-Object System.Windows.Forms.ComboBox
     $script:Ui.Payload.Location = New-Object System.Drawing.Point(190, 182)
     $script:Ui.Payload.Size = New-Object System.Drawing.Size(630, 28)
@@ -1744,25 +2113,28 @@ function Build-XssTab {
     $script:Ui.Payload.ForeColor = $script:Theme.Text
     $script:Ui.Payload.Font = New-Object System.Drawing.Font('Segoe UI', 9)
     $script:Ui.Payload.Items.AddRange(@(
-        '<img src="x" onerror="alert(''XSS_Test_Triggered'')" />',
+        '<img src="x" onerror="alert(''Control_Test_Marker'')" />',
         '<svg onload="alert(''Lab_Control_Payload'')"></svg>',
         '<a href="javascript:alert(''Link_Control_Payload'')">Lab validation link</a>'
     ))
     $script:Ui.Payload.SelectedIndex = 0
     $panel.Controls.Add($script:Ui.Payload)
-    $fire = New-Button 'Fire Test Email' 22 234 210
-    $script:Ui.XssPill = New-Pill 'Test idle' 260 238 180
-    $script:Ui.XssProgress = New-Progress 464 248 260
-    $panel.Controls.AddRange(@($fire, $script:Ui.XssPill, $script:Ui.XssProgress))
-    $script:Ui.XssLog = New-Log 22 290 1070 320; $panel.Controls.Add($script:Ui.XssLog)
-    $fire.Add_Click({
+    
+    $sendBtn = New-Button 'Send HTML Validation Mail' 22 234 210
+    $script:Ui.HtmlValidationPill = New-Pill 'Test idle' 260 238 180
+    $script:Ui.HtmlValidationProgress = New-Progress 464 248 260
+    $panel.Controls.AddRange(@($sendBtn, $script:Ui.HtmlValidationPill, $script:Ui.HtmlValidationProgress))
+    
+    $script:Ui.HtmlValidationLog = New-Log 22 290 1070 320; $panel.Controls.Add($script:Ui.HtmlValidationLog)
+    
+    $sendBtn.Add_Click({
         $data = @{
-            Sender = $script:Ui.Attacker.Text.Trim()
-            Recipient = $script:Ui.Victim.Text.Trim()
+            Sender = $script:Ui.Sender.Text.Trim()
+            Recipient = $script:Ui.Recipient.Text.Trim()
             Smtp = $script:Ui.Smtp.Text.Trim()
             Payload = [string]$script:Ui.Payload.SelectedItem
         }
-        Start-LabTask 'XSS email test' $script:Ui.XssLog $script:Ui.XssPill $script:Ui.XssProgress { param($Data, $Report) Send-XssMail $Data $Report } $data 'Sending benign lab XSS validation email...' 'Lab XSS validation message submitted to SMTP.' 'XssMailSent'
+        Start-LabTask 'HTML validation test' $script:Ui.HtmlValidationLog $script:Ui.HtmlValidationPill $script:Ui.HtmlValidationProgress { param($Data, $Report) Send-HtmlValidationMail $Data $Report } $data 'Sending benign lab HTML/CSP validation email...' 'Lab HTML validation message submitted to SMTP.' 'HtmlValidationMailSent'
     })
 }
 
@@ -1808,7 +2180,7 @@ function Build-CveValidationTab {
                 System = $script:Ui.SystemLog
                 Exchange = $script:Ui.ExchangeLog
                 Mitigation = $script:Ui.MitigationLog
-                Xss = $script:Ui.XssLog
+                HtmlValidation = $script:Ui.HtmlValidationLog
                 CVE = $script:Ui.CveLog
                 Profile = $script:Ui.ProfileLog
             }
@@ -1855,7 +2227,7 @@ function New-MainForm {
     $tabs.Anchor = 'Top,Bottom,Left,Right'
     $tabs.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9)
     $form.Controls.Add($tabs)
-    $tabNames = 'Lab Control & Evidence','System & Network Setup','Exchange Prep & Install','Mitigation & EOMT','Automated XSS Test','CVE-2026-42897 Validation'
+    $tabNames = 'Profiles & Preflight','System & Network Setup','Exchange Prep & Install','Mitigation & EOMT','Benign HTML Validation Test','CVE-2026-42897 Validation'
     $tabPages = @()
     foreach ($name in $tabNames) {
         $tab = New-Object System.Windows.Forms.TabPage
@@ -1869,7 +2241,7 @@ function New-MainForm {
     Build-SystemTab $tabPages[1]
     Build-ExchangeTab $tabPages[2]
     Build-MitigationTab $tabPages[3]
-    Build-XssTab $tabPages[4]
+    Build-HtmlValidationTab $tabPages[4]
     Build-CveValidationTab $tabPages[5]
 
     Apply-LabCheckpoint
