@@ -1,4 +1,4 @@
-﻿# Exchange Lab Manager Troubleshooting Guide
+# Exchange Lab Manager Troubleshooting Guide
 
 This guide addresses common issues when using Exchange Lab Manager in an isolated lab environment.
 
@@ -77,7 +77,7 @@ Get-NetAdapter
 Get-NetIPAddress
 
 # Verify the static IP is not in use
-Test-NetConnection -ComputerName 192.168.100.10 -InformationLevel "Detailed"
+Test-NetConnection -ComputerName 10.10.10.10 -InformationLevel "Detailed"
 
 # Check lab network isolation in VirtualBox
 # Settings -> Network -> Ensure "Internal Network" is selected
@@ -87,7 +87,7 @@ Test-NetConnection -ComputerName 192.168.100.10 -InformationLevel "Detailed"
 
 ### "Cannot reach gateway after network setup"
 
-**Symptom:** Lab VM cannot reach 192.168.100.1 (or configured gateway).
+**Symptom:** Lab VM cannot reach 10.10.10.1 (or configured gateway).
 
 **Cause:**
 - Another VM is not running
@@ -103,8 +103,8 @@ Test-NetConnection -ComputerName 192.168.100.10 -InformationLevel "Detailed"
 # - No bridging or NAT
 
 # Test connectivity after configuration
-Test-NetConnection -ComputerName 192.168.100.1
-Get-NetRoute | Where-Object { $_.DestinationPrefix -like '192.168.100.*' }
+Test-NetConnection -ComputerName 10.10.10.1
+Get-NetRoute | Where-Object { $_.DestinationPrefix -like '10.10.10.*' }
 ```
 
 ---
@@ -154,10 +154,10 @@ Get-DnsServerForwarder
 
 # On client VMs, point to the DC's IP for DNS
 # Network Settings -> Advanced -> DNS
-# Use the DC's IP (e.g., 192.168.100.10)
+# Use the DC's IP (e.g., 10.10.10.10)
 
 # Or set DNS via PowerShell on client VM:
-$dcIp = '192.168.100.10'
+$dcIp = '10.10.10.10'
 Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses $dcIp
 ```
 
@@ -353,10 +353,10 @@ Invoke-WebRequest -Uri 'https://lab-ex01.exchange-lab.test/owa' -UseBasicParsing
 Get-Service | Where-Object { $_.Name -like '*SMTP*' }
 
 # Test SMTP connectivity
-Test-NetConnection -ComputerName mail.lab.local -Port 25
-Test-NetConnection -ComputerName lab-ex01.exchange-lab.local -Port 25
+Test-NetConnection -ComputerName mail.mylab.local -Port 25
+Test-NetConnection -ComputerName lab-ex01.exchange-lab.test -Port 25
 
-# Check the configured SMTP target in the GUI (default: mail.lab.local)
+# Check the configured SMTP target in the GUI (default: 10.10.10.30)
 
 # Verify sender address format
 # Should be user@domain.local format

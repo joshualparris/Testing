@@ -1,0 +1,19 @@
+﻿{
+    "SchemaVersion":  2,
+    "Name":  "qa-saved-profile",
+    "CreatedUtc":  "2026-06-05 02:29:29Z",
+    "UpdatedUtc":  "2026-06-05 02:37:23Z",
+    "Inputs":  {
+                   "Ip":  "172.16.10.20",
+                   "Mask":  "255.255.254.0",
+                   "Domain":  "qa.lab",
+                   "ExchangePath":  "E:\\QA Exchange",
+                   "Eomt":  "C:\\QA\\EOMT.ps1",
+                   "Sender":  "qa-sender@qa.lab",
+                   "Recipient":  "qa-recipient@qa.lab",
+                   "Smtp":  "172.16.10.21",
+                   "PayloadIndex":  1,
+                   "Payload":  "\u003csvg onload=\"alert(\u0027Lab_Control_Payload\u0027)\"\u003e\u003c/svg\u003e",
+                   "OwaUrl":  "https://qa-ex01.qa.lab/owa"
+               }
+}

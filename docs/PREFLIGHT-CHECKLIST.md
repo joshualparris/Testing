@@ -1,4 +1,4 @@
-﻿# Preflight Readiness Checklist
+# Preflight Readiness Checklist
 
 Use this checklist before running Exchange Lab Manager to verify your lab environment is ready.
 
@@ -17,12 +17,12 @@ Use this checklist before running Exchange Lab Manager to verify your lab enviro
   - "Attached to: Internal Network"
   - Network name: `ExchangeLab` (identical for both VMs)
 - [ ] **Both VMs have static IPs configured**
-  - Domain Controller: 192.168.100.10/24
-  - Exchange Server: 192.168.100.20/24
+  - Domain Controller: 10.10.10.10/24
+  - Exchange Server: 10.10.10.30/24
 - [ ] **Both VMs can ping each other**
   ```powershell
-  Test-NetConnection -ComputerName 192.168.100.10  # From Exchange VM
-  Test-NetConnection -ComputerName 192.168.100.20  # From DC VM
+  Test-NetConnection -ComputerName 10.10.10.10  # From Exchange VM
+  Test-NetConnection -ComputerName 10.10.10.30  # From DC VM
   ```
 
 ### [ ] Windows Server Installation
@@ -93,11 +93,11 @@ Use this checklist before running Exchange Lab Manager to verify your lab enviro
 ### [ ] Network Configuration
 - [ ] **DNS configured to point to Domain Controller**
   ```powershell
-  Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 192.168.100.10
+  Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 10.10.10.10
   ```
 - [ ] **Can resolve DC hostname** (after DC is promoted)
   ```powershell
-  nslookup labdc.mylab.local 192.168.100.10
+  nslookup labdc.mylab.local 10.10.10.10
   ```
 
 ### [ ] User Account
@@ -113,10 +113,10 @@ Use this checklist before running Exchange Lab Manager to verify your lab enviro
 ## Domain Controller VM Pre-Checks
 
 ### [ ] Network Configuration
-- [ ] **Static IP set**: 192.168.100.10/24
+- [ ] **Static IP set**: 10.10.10.10/24
 - [ ] **Can reach Exchange VM** (or at least respond to ping)
   ```powershell
-  Test-NetConnection -ComputerName 192.168.100.20
+  Test-NetConnection -ComputerName 10.10.10.30
   ```
 
 ### [ ] User Account
@@ -132,8 +132,9 @@ Run these commands on each VM to verify readiness:
 ### Domain Controller VM
 ```powershell
 # Network connectivity
-Test-NetConnection -ComputerName 192.168.100.20  # Should succeed
+Test-NetConnection -ComputerName 10.10.10.30  # Should succeed
 Get-NetIPAddress | Where-Object { $_.AddressState -eq 'Preferred' }
+```
 
 # Time sync
 Get-Date
@@ -145,10 +146,11 @@ Get-Date
 ### Exchange Server VM
 ```powershell
 # Network connectivity to DC
-Test-NetConnection -ComputerName 192.168.100.10  # Should succeed
+Test-NetConnection -ComputerName 10.10.10.10  # Should succeed
 
 # DNS resolution
-nslookup 192.168.100.10  # Should resolve after DC promotion
+nslookup 10.10.10.10  # Should resolve after DC promotion
+```
 
 # PowerShell version
 $PSVersionTable.PSVersion  # Should be 5.1+
@@ -178,7 +180,7 @@ Test-NetConnection -ComputerName 8.8.8.8  # Should FAIL (no external access)
 Test-NetConnection -ComputerName <HostIP>  # Should FAIL (no host access)
 
 # But you CAN reach the other lab VM
-Test-NetConnection -ComputerName 192.168.100.10  # Should SUCCEED
+Test-NetConnection -ComputerName 10.10.10.10  # Should SUCCEED
 ```
 
 **If external connectivity exists, your lab is NOT isolated and you risk affecting production networks.**

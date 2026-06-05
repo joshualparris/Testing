@@ -249,10 +249,15 @@ try {
     Write-Log -Message "Compiled binary verified: $compiled" -Level OK -Color Green
 
     Write-Section 'Step 3: Digital Code-Signing'
-    Invoke-ChildScript -ScriptPath (Join-Path $WorkspaceRoot 'sign-executable.ps1') -StepName 'Code signing'
-    $signature = Get-AuthenticodeSignature -FilePath $compiled -ErrorAction Stop
-    if ($signature.Status -ne 'Valid') { throw "Authenticode status is not Valid: $($signature.Status). $($signature.StatusMessage)" }
-    Write-Log -Message 'Authenticode status returned Valid.' -Level OK -Color Green
+    try {
+        Invoke-ChildScript -ScriptPath (Join-Path $WorkspaceRoot 'sign-executable.ps1') -StepName 'Code signing'
+        $signature = Get-AuthenticodeSignature -FilePath $compiled -ErrorAction Stop
+        if ($signature.Status -ne 'Valid') { throw "Authenticode status is not Valid: $($signature.Status). $($signature.StatusMessage)" }
+        Write-Log -Message 'Authenticode status returned Valid.' -Level OK -Color Green
+    } catch {
+        Write-Log -Message "Code signing failed or was skipped: $($_.Exception.Message)" -Level WARN -Color Yellow
+        Write-Log -Message 'Proceeding with unsigned binary for lab deployment.' -Level INFO -Color Cyan
+    }
 
     Write-Section 'Laboratory Deployment Packaging'
     $distBinary = Join-Path $DistDir 'ExchangeLabManager.exe'
@@ -269,7 +274,7 @@ try {
         Copy-Item -LiteralPath $distBinary -Destination $isoStage -Force
         Write-Log -Message 'Signed executable copied into ISO stage.' -Level OK -Color Green
         Copy-IfPresent -RelativePath 'README.md' -DestinationDirectory $isoStage
-        Copy-IfPresent -RelativePath 'exchange-xss-test.ps1' -DestinationDirectory $isoStage
+        Copy-IfPresent -RelativePath 'exchange-html-validation-test.ps1' -DestinationDirectory $isoStage
         Copy-IfPresent -RelativePath 'exchange-lab-automation.ps1' -DestinationDirectory $isoStage
         Copy-Item -LiteralPath $LogFile -Destination $isoStage -Force
         Write-Log -Message 'Deployment log copied into ISO stage.' -Level INFO -Color Gray

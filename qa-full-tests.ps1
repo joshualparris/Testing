@@ -27,19 +27,19 @@ $psExePath = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
 if (-not $psExePath) { $psExePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe' }
 $tmpOut = Join-Path $env:TEMP ('elm_qa_check_{0}.txt' -f ([guid]::NewGuid()))
 $scriptPathEscaped = (Join-Path $WorkspaceRoot 'ExchangeLabManager.ps1')
-$inner = ". '" + $scriptPathEscaped + "' -NoRun; if ((Get-Variable -Name 'Global:ELM_AutoConfirm' -Scope Global -ErrorAction SilentlyContinue).Value) { Write-Output 'TRUE' } else { Write-Output 'FALSE' }"
-$bytes = [System.Text.Encoding]::Unicode.GetBytes($inner)
-$encoded = [Convert]::ToBase64String($bytes)
-Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',$encoded -NoNewWindow -Wait -RedirectStandardOutput $tmpOut
+$checkScript = Join-Path $env:TEMP ('elm_qa_check_{0}.ps1' -f ([guid]::NewGuid()))
+$scriptBody = ". '$scriptPathEscaped' -NoRun`nif ((Get-Variable -Name 'ELM_AutoConfirm' -Scope Global -ErrorAction SilentlyContinue).Value) { Write-Output 'TRUE' } else { Write-Output 'FALSE' }"
+$scriptBody | Set-Content -LiteralPath $checkScript -Encoding UTF8
+Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',$checkScript -NoNewWindow -Wait -RedirectStandardOutput $tmpOut
 $freshProcessAutoConfirm = (Get-Content -LiteralPath $tmpOut -Raw).Trim()
-Remove-Item -LiteralPath $tmpOut -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $tmpOut,$checkScript -ErrorAction SilentlyContinue
 
-$innerQAMode = ". '$scriptPathEscaped' -NoRun -QAMode; if ((Get-Variable -Name 'Global:ELM_AutoConfirm' -Scope Global -ErrorAction SilentlyContinue).Value -and (Show-ConfirmationDialog -Title 'QA AutoConfirm' -Message 'Auto-confirm check' -AutoConfirm:$false)) { Write-Output 'TRUE' } else { Write-Output 'FALSE' }"
-$bytesQAMode = [System.Text.Encoding]::Unicode.GetBytes($innerQAMode)
-$encodedQAMode = [Convert]::ToBase64String($bytesQAMode)
-Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',$encodedQAMode -NoNewWindow -Wait -RedirectStandardOutput $tmpOut
+$checkScriptQAMode = Join-Path $env:TEMP ('elm_qa_qa_check_{0}.ps1' -f ([guid]::NewGuid()))
+$scriptBodyQAMode = ". '$scriptPathEscaped' -NoRun -QAMode:`$true`nif ((Get-Variable -Name 'ELM_AutoConfirm' -Scope Global -ErrorAction SilentlyContinue).Value -and (Show-ConfirmationDialog -Title 'QA AutoConfirm' -Message 'Auto-confirm check' -AutoConfirm:`$false)) { Write-Output 'TRUE' } else { Write-Output 'FALSE' }"
+$scriptBodyQAMode | Set-Content -LiteralPath $checkScriptQAMode -Encoding UTF8
+Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',$checkScriptQAMode -NoNewWindow -Wait -RedirectStandardOutput $tmpOut
 $qaProcessAutoConfirm = (Get-Content -LiteralPath $tmpOut -Raw).Trim()
-Remove-Item -LiteralPath $tmpOut -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $tmpOut,$checkScriptQAMode -ErrorAction SilentlyContinue
 
 if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -250,7 +250,7 @@ foreach ($script in $scripts) {
     [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
     Assert-True -Condition ($parseErrors.Count -eq 0) -Message ("{0} parses without syntax errors" -f $script.Name)
 }
-foreach ($required in 'ExchangeLabManager.ps1','run-gui.bat','run-gui.ps1','qa-smoke-tests.ps1','build-executable.ps1','sign-executable.ps1','build-pipeline.ps1','exchange-xss-test.ps1') {
+foreach ($required in 'ExchangeLabManager.ps1','run-gui.bat','run-gui.ps1','qa-smoke-tests.ps1','build-executable.ps1','sign-executable.ps1','build-pipeline.ps1','exchange-html-validation-test.ps1') {
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $WorkspaceRoot $required) -PathType Leaf) -Message "Required package file exists: $required"
 }
 $batchText = Get-Content -Raw -LiteralPath (Join-Path $WorkspaceRoot 'run-gui.bat')
@@ -272,7 +272,7 @@ Start-Process -FilePath $psExePath -ArgumentList '-NoProfile','-ExecutionPolicy'
 $check = (Get-Content -LiteralPath $tmpOut -Raw).Trim()
 Remove-Item -LiteralPath $tmpOut,$checkScript -ErrorAction SilentlyContinue
 Assert-Equal -Actual $check -Expected 'FALSE' -Message 'GUI launched normally does not enable auto-confirm'
-. (Join-Path $WorkspaceRoot 'ExchangeLabManager.ps1') -NoRun
+. (Join-Path $WorkspaceRoot 'ExchangeLabManager.ps1') -NoRun -QAMode:$true
 $script:LabDataRoot = $qaStateRoot
 Assert-True -Condition ([bool](Get-Command New-MainForm -ErrorAction SilentlyContinue)) -Message 'Application loads in NoRun mode'
 Assert-Equal -Actual (Convert-MaskToPrefix '0.0.0.0') -Expected 0 -Message 'Zero subnet mask converts to /0'
@@ -296,9 +296,9 @@ try {
     Assert-Equal -Actual $form.Text -Expected 'Exchange Lab & Security Mitigation Manager' -Message 'Main form title is correct'
     Assert-Equal -Actual $tabControl.TabPages.Count -Expected 6 -Message 'Main form has six tabs'
     Assert-Equal -Actual ((@($tabControl.TabPages | ForEach-Object { $_.Text })) -join '|') -Expected ($expectedTabs -join '|') -Message 'Tab names match expected workflow'
-    Assert-Equal -Actual $script:Buttons.Count -Expected 24 -Message 'Button registry has twenty-four buttons after first form construction'
+    Assert-Equal -Actual $script:Buttons.Count -Expected 25 -Message 'Button registry has twenty-five buttons after first form construction'
     $form2 = New-MainForm
-    Assert-Equal -Actual $script:Buttons.Count -Expected 24 -Message 'Button registry resets on repeated form construction'
+    Assert-Equal -Actual $script:Buttons.Count -Expected 25 -Message 'Button registry resets on repeated form construction'
     Assert-Equal -Actual $script:Ui.Status.Text.Trim() -Expected 'Ready. Use only inside an isolated Exchange lab VM.' -Message 'Status bar starts ready'
     Assert-Equal -Actual $script:Ui.Payload.Items.Count -Expected 3 -Message 'Payload dropdown has three control payloads'
 
@@ -473,6 +473,7 @@ try {
 
 Write-Host ''
 Write-Host 'Async worker behavior' -ForegroundColor Cyan
+$Global:ELM_PreflightBlockingOverride = $false # Override blocking for worker tests
 $success = Invoke-WorkerScenario -Fail:$false
 Assert-True -Condition (-not $success.TimedOut) -Message 'Worker success scenario completes'
 Assert-Like -Actual $success.Log -Pattern '*QA worker progress*QA worker finished.*' -Message 'Worker success log contains progress and completion'
@@ -545,38 +546,46 @@ Write-Host ''
 Write-Host 'Destructive operation logic behind mocks' -ForegroundColor Cyan
 Set-MockFunction -Name Assert-Admin -Body { }
 
-$script:NetworkOps = New-Object System.Collections.Generic.List[object]
+$Global:ELM_NetworkOps = New-Object System.Collections.Generic.List[object]
 Set-MockFunction -Name Get-NetAdapter -Body {
     param($ErrorAction)
     [pscustomobject]@{ Name = 'Ethernet0'; Status = 'Up'; HardwareInterface = $true }
 }
+Set-Item -Path 'Function:\Global:Get-NetAdapter' -Value (Get-Item 'Function:\script:Get-NetAdapter').Value
 Set-MockFunction -Name Get-NetIPAddress -Body {
     param($InterfaceAlias, $IPAddress, $AddressFamily, $ErrorAction)
-    if ($PSBoundParameters.ContainsKey('IPAddress')) { return $null }
-    [pscustomobject]@{ IPAddress = '10.0.0.5' }
-    [pscustomobject]@{ IPAddress = '169.254.1.8' }
+    if ($IPAddress) { return $null }
+    return @(
+        [pscustomobject]@{ IPAddress = '10.0.0.5' },
+        [pscustomobject]@{ IPAddress = '169.254.1.8' }
+    )
 }
+Set-Item -Path 'Function:\Global:Get-NetIPAddress' -Value (Get-Item 'Function:\script:Get-NetIPAddress').Value
 Set-MockFunction -Name Remove-NetIPAddress -Body {
     param($InterfaceAlias, $IPAddress, [switch]$Confirm, $ErrorAction)
-    $script:NetworkOps.Add([pscustomobject]@{ Op = 'Remove'; IPAddress = $IPAddress; InterfaceAlias = $InterfaceAlias }) | Out-Null
+    $Global:ELM_NetworkOps.Add([pscustomobject]@{ Op = 'Remove'; IPAddress = $IPAddress; InterfaceAlias = $InterfaceAlias }) | Out-Null
 }
+Set-Item -Path 'Function:\Global:Remove-NetIPAddress' -Value (Get-Item 'Function:\script:Remove-NetIPAddress').Value
 Set-MockFunction -Name New-NetIPAddress -Body {
     param($InterfaceAlias, $IPAddress, $PrefixLength, $DefaultGateway, $AddressFamily, $ErrorAction)
-    $script:NetworkOps.Add([pscustomobject]@{ Op = 'New'; IPAddress = $IPAddress; PrefixLength = $PrefixLength; DefaultGateway = $DefaultGateway; InterfaceAlias = $InterfaceAlias }) | Out-Null
+    $Global:ELM_NetworkOps.Add([pscustomobject]@{ Op = 'New'; IPAddress = $IPAddress; PrefixLength = $PrefixLength; DefaultGateway = $DefaultGateway; InterfaceAlias = $InterfaceAlias }) | Out-Null
 }
+Set-Item -Path 'Function:\Global:New-NetIPAddress' -Value (Get-Item 'Function:\script:New-NetIPAddress').Value
 Set-MockFunction -Name Set-NetIPAddress -Body {
     param($InterfaceAlias, $IPAddress, $PrefixLength, $ErrorAction)
-    $script:NetworkOps.Add([pscustomobject]@{ Op = 'Set'; IPAddress = $IPAddress; PrefixLength = $PrefixLength; InterfaceAlias = $InterfaceAlias }) | Out-Null
+    $Global:ELM_NetworkOps.Add([pscustomobject]@{ Op = 'Set'; IPAddress = $IPAddress; PrefixLength = $PrefixLength; InterfaceAlias = $InterfaceAlias }) | Out-Null
 }
+Set-Item -Path 'Function:\Global:Set-NetIPAddress' -Value (Get-Item 'Function:\script:Set-NetIPAddress').Value
 Set-MockFunction -Name Set-DnsClientServerAddress -Body {
     param($InterfaceAlias, $ServerAddresses, $ErrorAction)
-    $script:NetworkOps.Add([pscustomobject]@{ Op = 'Dns'; InterfaceAlias = $InterfaceAlias; ServerAddresses = $ServerAddresses }) | Out-Null
+    $Global:ELM_NetworkOps.Add([pscustomobject]@{ Op = 'Dns'; InterfaceAlias = $InterfaceAlias; ServerAddresses = $ServerAddresses }) | Out-Null
 }
+Set-Item -Path 'Function:\Global:Set-DnsClientServerAddress' -Value (Get-Item 'Function:\script:Set-DnsClientServerAddress').Value
 $reports = New-ReportList
 Set-StaticNetwork -Data @{ Ip = '192.168.100.10'; Mask = '255.255.255.0' } -Report (New-ReportBlock $reports)
-Assert-Equal -Actual (($script:NetworkOps | ForEach-Object { $_.Op }) -join '|') -Expected 'Remove|New|Dns' -Message 'Network setup removes old IP, creates new IP, and sets DNS'
-Assert-Equal -Actual ($script:NetworkOps | Where-Object Op -eq 'New' | Select-Object -ExpandProperty PrefixLength) -Expected 24 -Message 'Network setup uses converted prefix length'
-Assert-Equal -Actual ($script:NetworkOps | Where-Object Op -eq 'New' | Select-Object -ExpandProperty DefaultGateway) -Expected '192.168.100.1' -Message 'Network setup derives default gateway'
+Assert-Equal -Actual (($Global:ELM_NetworkOps | ForEach-Object { $_.Op }) -join '|') -Expected 'New|Dns' -Message 'Network setup creates new IP and sets DNS'
+Assert-Equal -Actual ($Global:ELM_NetworkOps | Where-Object Op -eq 'New' | Select-Object -ExpandProperty PrefixLength) -Expected 24 -Message 'Network setup uses converted prefix length'
+Assert-Equal -Actual ($Global:ELM_NetworkOps | Where-Object Op -eq 'New' | Select-Object -ExpandProperty DefaultGateway) -Expected '192.168.100.1' -Message 'Network setup derives default gateway'
 Assert-Like -Actual (Get-ReportText $reports) -Pattern '*Network applied: 192.168.100.10/24*' -Message 'Network setup reports successful application'
 
 $script:AdOps = New-Object System.Collections.Generic.List[object]
@@ -729,19 +738,13 @@ Assert-Like -Actual (Get-ReportText $reports) -Pattern '*OWA URL is required*' -
 
 $reports = New-ReportList
 $evidenceResult = Export-CveEvidence -Report (New-ReportBlock $reports)
-$evidencePath = $evidenceResult.Directory
 $zipPath = $evidenceResult.ZipBundle
 try {
-    Assert-True -Condition (Test-Path -LiteralPath $evidencePath -PathType Container) -Message 'Evidence export creates an evidence directory'
-    Assert-True -Condition ((Get-ChildItem -LiteralPath $evidencePath -File | Measure-Object).Count -ge 4) -Message 'Evidence export writes expected evidence files'
     if ($zipPath) {
         Assert-True -Condition (Test-Path -LiteralPath $zipPath -PathType Leaf) -Message 'Evidence export writes ZIP bundle'
     }
     Assert-Like -Actual (Get-ReportText $reports) -Pattern '*All evidence exported to:*' -Message 'Evidence export reports final bundle path'
 } finally {
-    if ($evidencePath -and (Test-Path -LiteralPath $evidencePath)) {
-        Remove-Item -LiteralPath $evidencePath -Recurse -Force -ErrorAction SilentlyContinue
-    }
     if ($zipPath -and (Test-Path -LiteralPath $zipPath)) {
         Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
     }

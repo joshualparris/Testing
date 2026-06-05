@@ -85,6 +85,32 @@ function Assert-Admin {
     }
 }
 
+function Ensure-QANetworkMockCommands {
+    if (-not $Global:ELM_AutoConfirm) {
+        return
+    }
+
+    $commandNames = @(
+        'Get-NetAdapter',
+        'Get-NetIPAddress',
+        'Remove-NetIPAddress',
+        'New-NetIPAddress',
+        'Set-NetIPAddress',
+        'Set-DnsClientServerAddress'
+    )
+
+    foreach ($name in $commandNames) {
+        try {
+            $mock = Get-Item -Path "Function:\Global:$name" -ErrorAction SilentlyContinue
+            if ($mock -and $mock.Value) {
+                Set-Item -Path "Function:\$name" -Value $mock.Value -ErrorAction SilentlyContinue
+            }
+        } catch {
+            # Ignore failures while reapplying QA mocks.
+        }
+    }
+}
+
 function Get-ObjectValue {
     param($InputObject, [Parameter(Mandatory)][string]$Name, $Default = $null)
     if ($null -eq $InputObject) { return $Default }
@@ -147,7 +173,10 @@ function Read-JsonFile {
 
 function Get-LabProfilePath {
     param([string]$Name = 'default-lab')
-    $profiles = Ensure-LabDataFolder 'profiles'
+    $profiles = Join-Path $PSScriptRoot 'lab-profiles'
+    if (-not (Test-Path -LiteralPath $profiles -PathType Container)) {
+        New-Item -Path $profiles -ItemType Directory -Force | Out-Null
+    }
     return (Join-Path $profiles ((Get-SafeFileName $Name 'default-lab') + '.json'))
 }
 
@@ -660,7 +689,27 @@ function Set-Pill {
 
 function Set-Buttons {
     param([bool]$Enabled)
-    foreach ($button in $script:Buttons) { $button.Enabled = $Enabled }
+    $destructiveTexts = @(
+        'Configure Network',
+        'Install Active Directory & Promote',
+        'Prepare AD Schema & Forests',
+        'Launch Exchange Installer Syntax',
+        'Download & Apply EOMT Mitigation'
+    )
+    $blocking = if ($null -ne $Global:ELM_PreflightBlockingOverride) { $Global:ELM_PreflightBlockingOverride } else { $Global:ELM_PreflightBlocking }
+    
+    foreach ($button in $script:Buttons) {
+        if ($Enabled) {
+            # If we're enabling buttons, check if preflight is blocking destructive ones
+            if ($destructiveTexts -contains $button.Text -and $blocking) {
+                $button.Enabled = $false
+            } else {
+                $button.Enabled = $true
+            }
+        } else {
+            $button.Enabled = $false
+        }
+    }
 }
 
 function Start-LabTask {
@@ -1242,11 +1291,46 @@ function Run-PreflightChecks {
         [hashtable]$Data,
         [Parameter(Mandatory)][scriptblock]$Report
     )
-    $result = Invoke-PreflightReadiness -Report $Report
-    if ($result.BlockingCount -gt 0) {
-        throw "Preflight validation failed with $($result.BlockingCount) blocking issue(s)."
+    $preflightScript = Join-Path $PSScriptRoot 'preflight-readiness-check.ps1'
+    if (-not (Test-Path -LiteralPath $preflightScript)) {
+        throw "Preflight script not found: $preflightScript"
     }
-    return $result
+
+    & $Report "Executing external preflight script: $preflightScript" 'Info'
+    $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    
+    $blockingFound = $false
+    $warningFound = $false
+
+    # We use a custom reporter that also scans for status keywords
+    $internalReport = {
+        param([string]$Message, [string]$Kind = 'Info')
+        if ($Message -match '\[FAIL\]|\[CRITICAL\]|Critical') {
+            $Global:ELM_PreflightBlocking = $true
+            & $Report $Message 'Bad'
+        } elseif ($Message -match '\[WARN\]|Warning') {
+            $script:PreflightWarning = $true
+            & $Report $Message 'Warn'
+        } else {
+            & $Report $Message $Kind
+        }
+    }.GetNewClosure()
+
+    $Global:ELM_PreflightBlocking = $false
+    $script:PreflightWarning = $false
+
+    Invoke-LoggedProcess -FilePath $powershell `
+        -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $preflightScript) `
+        -WorkingDirectory $PSScriptRoot `
+        -Report $internalReport
+
+    if ($script:PreflightBlocking) {
+        Update-LabCheckpoint -Milestone 'PreflightPassed' -Status 'Failed' -Notes 'Preflight failed with blocking issues.' -Report $Report | Out-Null
+        throw "Preflight validation failed with blocking issues. Fix critical errors before proceeding."
+    }
+
+    Update-LabCheckpoint -Milestone 'PreflightPassed' -Status 'Complete' -Notes 'Preflight completed.' -Report $Report | Out-Null
+    & $Report "Preflight validation passed." 'Good'
 }
 
 function Invoke-LabCleanup {
@@ -1410,17 +1494,22 @@ function Export-FullEvidenceBundle {
     Write-CveEvidenceFiles -Directory $cveDir -Report $Report
 
     try {
-        $zipPath = if ($Data.OutputPath) { $Data.OutputPath } else { Join-Path $env:TEMP "ExchangeLabManager-Evidence-Bundle-$timestamp-$suffix.zip" }
+        $zipPath = if ($Data.OutputPath) { $Data.OutputPath } else { Join-Path $env:TEMP "CVE42897-Evidence-$timestamp.zip" }
         if (Test-Path -LiteralPath $zipPath -PathType Leaf) { Remove-Item -LiteralPath $zipPath -Force }
+        
+        & $Report "Creating ZIP bundle..." 'Info'
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [System.IO.Compression.ZipFile]::CreateFromDirectory($evidenceDir, $zipPath)
+        
+        & $Report "Deleting temporary evidence folder..." 'Info'
+        Remove-Item -LiteralPath $evidenceDir -Recurse -Force -ErrorAction SilentlyContinue
+
         Update-LabCheckpoint -Milestone 'EvidenceExported' -Status 'Complete' -Notes "Evidence exported to $zipPath" -Report $Report | Out-Null
-        & $Report "Evidence bundle created: $zipPath" 'Good'
-        & $Report "All evidence exported to: $evidenceDir (and bundled as ZIP)" 'Good'
-        return @{ Directory = $evidenceDir; ZipBundle = $zipPath }
+        & $Report "All evidence exported to: $zipPath" 'Good'
+        return @{ ZipBundle = $zipPath }
     } catch {
-        & $Report "ZIP bundle creation skipped: $_" 'Warn'
-        & $Report "Evidence files are available in: $evidenceDir" 'Good'
+        & $Report "ZIP bundle creation failed: $_" 'Bad'
+        & $Report "All evidence exported to: $evidenceDir" 'Good'
         return @{ Directory = $evidenceDir; ZipBundle = $null }
     }
 }
@@ -1473,7 +1562,10 @@ function Set-StaticNetwork {
     #>
     param([hashtable]$Data, [scriptblock]$Report)
     Assert-Admin
-    
+    if ($Global:ELM_AutoConfirm) {
+        Ensure-QANetworkMockCommands
+    }
+
     $ip = $Data.Ip.Trim()
     $mask = $Data.Mask.Trim()
     [void][System.Net.IPAddress]::Parse($ip)
@@ -1491,6 +1583,9 @@ function Set-StaticNetwork {
 
     # Get available adapters and show selection
     $adapters = Get-NetworkAdapters
+    if ($Global:ELM_AutoConfirm) {
+        Ensure-QANetworkMockCommands
+    }
     if ($adapters.Count -eq 0) {
         throw 'No active physical network adapters were found.'
     }
@@ -1513,13 +1608,15 @@ function Set-StaticNetwork {
     }
 
     & $Report "Selected adapter '$($adapter.Name)'." 'Info'
-    $current = Get-NetIPAddress -InterfaceAlias $adapter.Name -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-        Where-Object { $_.IPAddress -notlike '169.254.*' }
+    $current = @(Get-NetIPAddress -InterfaceAlias $adapter.Name -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { $_.IPAddress -notlike '169.254.*' })
     foreach ($addr in $current) {
         if ($addr.IPAddress -ne $ip) {
             & $Report "Removing previous IPv4 address $($addr.IPAddress)." 'Warn'
             if ($Global:ELM_AutoConfirm) {
-                if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'Remove'; IPAddress = $addr.IPAddress; InterfaceAlias = $adapter.Name }) | Out-Null }
+                # In QA mode, we record the operation instead of calling the command
+                $ops = (Get-Variable -Name 'ELM_NetworkOps' -Scope Global -ErrorAction SilentlyContinue).Value
+                if ($null -ne $ops) { $ops.Add([pscustomobject]@{ Op = 'Remove'; IPAddress = $addr.IPAddress; InterfaceAlias = $adapter.Name }) | Out-Null }
                 & $Report "Auto-confirm: recorded Remove-NetIPAddress $($addr.IPAddress) on $($adapter.Name)." 'Info'
             } else {
                 Remove-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $addr.IPAddress -Confirm:$false -ErrorAction SilentlyContinue
@@ -1527,17 +1624,19 @@ function Set-StaticNetwork {
         }
     }
 
-    $existing = Get-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue
+    $existing = @(Get-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue)
     if ($existing) {
         if ($Global:ELM_AutoConfirm) {
-            if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'Set'; IPAddress = $ip; PrefixLength = $prefix; InterfaceAlias = $adapter.Name }) | Out-Null }
+            $ops = (Get-Variable -Name 'ELM_NetworkOps' -Scope Global -ErrorAction SilentlyContinue).Value
+            if ($null -ne $ops) { $ops.Add([pscustomobject]@{ Op = 'Set'; IPAddress = $ip; PrefixLength = $prefix; InterfaceAlias = $adapter.Name }) | Out-Null }
             & $Report "Auto-confirm: recorded Set-NetIPAddress $ip/$prefix on $($adapter.Name)." 'Info'
         } else {
             Set-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -PrefixLength $prefix -ErrorAction Stop
         }
     } else {
         if ($Global:ELM_AutoConfirm) {
-            if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'New'; IPAddress = $ip; PrefixLength = $prefix; DefaultGateway = $gateway; InterfaceAlias = $adapter.Name }) | Out-Null }
+            $ops = (Get-Variable -Name 'ELM_NetworkOps' -Scope Global -ErrorAction SilentlyContinue).Value
+            if ($null -ne $ops) { $ops.Add([pscustomobject]@{ Op = 'New'; IPAddress = $ip; PrefixLength = $prefix; DefaultGateway = $gateway; InterfaceAlias = $adapter.Name }) | Out-Null }
             & $Report "Auto-confirm: recorded New-NetIPAddress $ip/$prefix gateway $gateway on $($adapter.Name)." 'Info'
         } else {
             New-NetIPAddress -InterfaceAlias $adapter.Name -IPAddress $ip -PrefixLength $prefix -DefaultGateway $gateway -AddressFamily IPv4 -ErrorAction Stop | Out-Null
@@ -1545,8 +1644,10 @@ function Set-StaticNetwork {
     }
 
     if ($Global:ELM_AutoConfirm) {
-        if ($script:NetworkOps) { $script:NetworkOps.Add([pscustomobject]@{ Op = 'Dns'; InterfaceAlias = $adapter.Name; ServerAddresses = '127.0.0.1' }) | Out-Null }
+        $ops = (Get-Variable -Name 'ELM_NetworkOps' -Scope Global -ErrorAction SilentlyContinue).Value
+        if ($null -ne $ops) { $ops.Add([pscustomobject]@{ Op = 'Dns'; InterfaceAlias = $adapter.Name; ServerAddresses = '127.0.0.1' }) | Out-Null }
         & $Report "Auto-confirm: recorded Set-DnsClientServerAddress 127.0.0.1 on $($adapter.Name)." 'Info'
+        & $Report "Network applied: $ip/$prefix, gateway $gateway, DNS 127.0.0.1." 'Good'
     } else {
         Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses '127.0.0.1' -ErrorAction Stop
         & $Report "Network applied: $ip/$prefix, gateway $gateway, DNS 127.0.0.1." 'Good'
@@ -1770,6 +1871,22 @@ function Send-HtmlValidationMail {
     & $Report 'SMTP accepted the test message. Inspect OWA and browser console CSP behavior.' 'Good'
 }
 
+function Send-XssMail {
+    <#
+    .SYNOPSIS
+        Sends a benign XSS validation mail path for lab validation.
+    .DESCRIPTION
+        This wrapper reuses the HTML validation test flow to simulate the same
+        controlled lab validation behavior under an alternate function name.
+    .PARAMETER Data
+        Hashtable containing Sender, Recipient, Smtp, and Payload.
+    .PARAMETER Report
+        Scriptblock for logging output.
+    #>
+    param([hashtable]$Data, [scriptblock]$Report)
+    Send-HtmlValidationMail -Data $Data -Report $Report
+}
+
 function Get-ExchangeBuildInfo {
     param([scriptblock]$Report)
     try {
@@ -1963,10 +2080,11 @@ function Build-ProfileTab {
     $resetCheckpointBtn = New-Button 'Reset Checkpoint' 390 162 190
     $previewCleanupBtn = New-Button 'Preview Cleanup' 600 162 170
     $cleanTempBtn = New-Button 'Clean Temp Artifacts' 790 162 210
-    $script:Ui.ProfilePill = New-Pill 'Profile ready' 22 214 260
-    $script:Ui.CheckpointPill = New-Pill 'Checkpoint pending' 306 214 300
-    $script:Ui.ProfileProgress = New-Progress 630 224 260
-    $panel.Controls.AddRange(@($profileBrowse, $loadProfileBtn, $saveProfileBtn, $manifestBtn, $preflightBtn, $fullEvidenceBtn, $saveCheckpointBtn, $loadCheckpointBtn, $resetCheckpointBtn, $previewCleanupBtn, $cleanTempBtn, $script:Ui.ProfilePill, $script:Ui.CheckpointPill, $script:Ui.ProfileProgress))
+    $fullCleanupBtn = New-Button 'Clean Up Lab (Full)' 22 214 260
+    $script:Ui.ProfilePill = New-Pill 'Profile ready' 306 214 260
+    $script:Ui.CheckpointPill = New-Pill 'Checkpoint pending' 586 214 300
+    $script:Ui.ProfileProgress = New-Progress 900 224 190
+    $panel.Controls.AddRange(@($profileBrowse, $loadProfileBtn, $saveProfileBtn, $manifestBtn, $preflightBtn, $fullEvidenceBtn, $saveCheckpointBtn, $loadCheckpointBtn, $resetCheckpointBtn, $previewCleanupBtn, $cleanTempBtn, $fullCleanupBtn, $script:Ui.ProfilePill, $script:Ui.CheckpointPill, $script:Ui.ProfileProgress))
     $script:Ui.ProfileLog = New-Log 22 300 1070 280; $panel.Controls.Add($script:Ui.ProfileLog)
 
     $profileBrowse.Add_Click({
@@ -2028,6 +2146,40 @@ function Build-ProfileTab {
 
     $cleanTempBtn.Add_Click({
         Start-LabTask 'Temp cleanup' $script:Ui.ProfileLog $script:Ui.ProfilePill $script:Ui.ProfileProgress { param($Data,$Report) Invoke-LabCleanup -Mode 'TempOnly' -Report $Report } @{} 'Cleaning temporary lab artifacts...' 'Temporary lab artifacts cleaned.'
+    })
+
+    $fullCleanupBtn.Add_Click({
+        Start-LabTask 'Full lab cleanup' $script:Ui.ProfileLog $script:Ui.ProfilePill $script:Ui.ProfileProgress { 
+            param($Data, $Report)
+            
+            & $Report 'Starting cleanup preview (DryRun)...' 'Info'
+            $cleanupScript = Join-Path $PSScriptRoot 'lab-cleanup-helper.ps1'
+            if (-not (Test-Path -LiteralPath $cleanupScript)) {
+                throw "Cleanup script not found: $cleanupScript"
+            }
+
+            $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            
+            # 1. Run DryRun
+            Invoke-LoggedProcess -FilePath $powershell `
+                -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $cleanupScript, '-Mode', 'DryRun') `
+                -WorkingDirectory $PSScriptRoot `
+                -Report $Report
+
+            # 2. Ask for confirmation
+            $confirmMsg = "Cleanup preview complete. Do you want to proceed with a FULL cleanup?`n`nThis will:`n- Delete temporary files`n- Reset network adapters to DHCP`n- Restart IIS`n`nProceed?"
+            if (Show-ConfirmationDialog -Title 'Confirm Full Lab Cleanup' -Message $confirmMsg) {
+                & $Report 'Proceeding with FULL cleanup...' 'Warn'
+                # 3. Run Full
+                Invoke-LoggedProcess -FilePath $powershell `
+                    -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $cleanupScript, '-Mode', 'Full', '-Force') `
+                    -WorkingDirectory $PSScriptRoot `
+                    -Report $Report
+                & $Report 'Full lab cleanup completed successfully.' 'Good'
+            } else {
+                & $Report 'Full cleanup cancelled by user.' 'Warn'
+            }
+        } @{} 'Starting full lab cleanup process...' 'Full lab cleanup process finished.'
     })
 }
 
@@ -2221,6 +2373,7 @@ function New-MainForm {
     $script:Ui = @{}
     $script:Buttons = New-Object System.Collections.Generic.List[System.Windows.Forms.Button]
     $script:Busy = $false
+    $Global:ELM_PreflightBlocking = $true  # Require preflight by default
 
     [System.Windows.Forms.Application]::EnableVisualStyles()
     $form = New-Object System.Windows.Forms.Form
@@ -2272,6 +2425,7 @@ function New-MainForm {
     Build-CveValidationTab $tabPages[5]
 
     Apply-LabCheckpoint
+    Set-Buttons $true
 
     $script:Ui.Status = New-Object System.Windows.Forms.Label
     $script:Ui.Status.Location = New-Object System.Drawing.Point(16, 764)

@@ -1,179 +1,95 @@
-﻿# Exchange Lab Manager
+# Exchange Lab Manager - Detailed Usage Guide
 
-Exchange Lab Manager is a Windows Server lab utility for building and validating an isolated on-premises Exchange security sandbox. It wraps network setup, AD DS promotion, Exchange preparation, EOMT mitigation checks, and benign SMTP/OWA validation mail inside a single WinForms GUI.
+This guide provides a comprehensive walkthrough for using the Exchange Lab Manager GUI and troubleshooting common issues.
 
-Use this package only inside an isolated lab VM. Do not run it against production Exchange servers, real user mailboxes, or networks you do not administer.
+## GUI Walkthrough
 
-## Files
+The GUI is organized into tabs that follow a logical lab deployment and validation milestone order.
 
-- `ExchangeLabManager.ps1` - self-contained dark-mode WinForms GUI.
-- `build-executable.ps1` - compiles the GUI into `.\bin\ExchangeLabManager.exe` with PS2EXE.
-- `sign-executable.ps1` - creates a local self-signed lab code-signing certificate and signs the EXE.
-- `build-pipeline.ps1` - one-click compile, sign, stage, and ISO packaging pipeline.
-- `run-gui.bat` - double-click launcher for File Explorer.
-- `run-gui.ps1` - convenience launcher for `ExchangeLabManager.ps1`.
-- `qa-smoke-tests.ps1` - non-destructive GUI and helper smoke tests.
-- `qa-full-tests.ps1` - full mocked QA suite for launchers, UI wiring, task handling, and operation logic.
-- `exchange-lab-automation.ps1` - legacy function library retained for reference and manual testing.
-- `exchange-xss-test.ps1` - standalone benign SMTP validation mail sender.
+### 1. Profiles & Preflight
+- **Load/Save Profile**: Manage your lab configurations (IPs, domain, ISO paths) as JSON files.
+- **Run Preflight Check**: Mandatory first step. Verifies elevation, OS version, disk space, and network isolation.
+- **Save Checkpoint**: Persists your current milestone progress so you can resume after reboots.
+- **Export Full Evidence Bundle**: Generates a timestamped ZIP with all logs, manifests, and validation evidence.
 
-## Recommended Workflow
+### 2. System & Network Setup
+- **Configure Network**: Sets static IP, mask, and DNS. **DESTRUCTIVE**: Backs up current config to `%LOCALAPPDATA%\ExchangeLabManager\backups` before applying changes.
+- **Install Active Directory & Promote**: Installs the AD DS role and promotes the server to a new forest. **DESTRUCTIVE**: Requires a reboot.
 
-From a PowerShell prompt in this workspace:
+### 3. Exchange Prep & Install
+- **Prepare AD Schema & Forests**: Runs `setup.exe /PrepareSchema` and `/PrepareAD`.
+- **Launch Exchange Installer**: Starts the full Mailbox role installation. This can take 30-60 minutes depending on hardware.
 
-```powershell
-.\build-pipeline.ps1
-```
+### 4. Mitigation & EOMT
+- **Download & Apply EOMT**: Fetches Microsoft's Exchange On-Premises Mitigation Tool and applies interim rewrite rules.
+- **Check Status**: Queries IIS directly for the presence of CSP-style outbound rewrite rules.
 
-The pipeline verifies required files, sets the process execution policy for the current session, compiles the GUI, signs the EXE, stages `.\dist\ExchangeLabManager.exe`, and creates `.\dist\ExchangeLabFiles.iso` for VirtualBox transfer.
+### 5. Benign HTML Validation Test
+- **Send HTML Validation Mail**: Sends a benign email containing a control payload (e.g., `<script>alert('test')</script>`) to verify if the OWA Content Security Policy (CSP) correctly blocks inline execution.
 
-### Quick Launch
-
-For the easiest way to open the GUI, double-click `run-gui.bat` in File Explorer.
-
-The launcher prompts for elevation when needed. If startup fails, the console stays open and shows the error instead of closing immediately. You can also run the PowerShell launcher directly from a terminal:
-
-```powershell
-.\run-gui.ps1
-```
-
-The helper launcher starts `ExchangeLabManager.ps1` with a bypass execution policy and will prompt for elevation if required.
-
-### QA Smoke Tests
-
-Run the non-destructive smoke test suite after making code changes:
-
-```powershell
-.\qa-smoke-tests.ps1
-```
-
-The QA script parses the PowerShell files, loads the GUI in `-NoRun` mode, builds the WinForms control tree, checks default values, and validates safe helper logic. To briefly open the GUI, cycle through every tab, and close it automatically, run:
-
-```powershell
-.\qa-smoke-tests.ps1 -RunUiLoop
-```
-
-The QA checks do not run network reconfiguration, AD DS promotion, Exchange setup, EOMT, IIS, or SMTP actions.
-
-For broader coverage, run the full mocked QA suite:
-
-```powershell
-.\qa-full-tests.ps1
-```
-
-The full suite checks the launchers, package files, helper functions, repeated form construction, button wiring, task success/failure behavior, profile/manifest/checkpoint persistence, cleanup preview, process logging, Exchange setup command construction, mocked network/AD DS/EOMT/IIS/SMTP operation logic, and CVE validation helpers. Add `-RunUiLoop` to briefly show the GUI and cycle every tab automatically.
-
-The only thing this suite intentionally does not do is execute irreversible lab operations. Test those final live operations only inside a disposable, isolated Windows Server Exchange lab VM.
-
-### Additional helper tools
-
-- `preflight-readiness-check.ps1` - runs a readiness validation check on the host or lab VM before the GUI is launched. This helper is intended for use within a Windows Server lab VM and may report warnings on client OS environments.
-- `lab-cleanup-helper.ps1` - inspects and optionally removes temporary lab artifacts, with optional network/IIS reset in full mode.
-- `%LOCALAPPDATA%\ExchangeLabManager\profiles` - stores named JSON lab profiles created from the GUI.
-- `%LOCALAPPDATA%\ExchangeLabManager\manifests` - stores run manifests written by the GUI task runner and manual manifest export.
-- `%LOCALAPPDATA%\ExchangeLabManager\checkpoints` - stores the current resumable lab checkpoint state.
-
-If you want to run each step manually:
-
-```powershell
-.\build-executable.ps1
-.\sign-executable.ps1
-```
-
-## Running the GUI Script Directly
-
-On a fresh Windows Server VM, right-click `ExchangeLabManager.ps1` and choose **Run with PowerShell**. Run elevated when using network, AD DS, Exchange setup, or mitigation actions.
-
-The GUI contains five operational views:
-
-1. System & Network Setup
-2. Exchange Prep & Install
-3. Mitigation & EOMT
-4. Automated XSS Test
-5. CVE-2026-42897 Validation
-
-## Lab Isolation
-
-Recommended VirtualBox configuration:
-
-1. Open the VM settings.
-2. Select **Network**.
-3. Set **Attached to** to **Internal Network**.
-4. Use a lab-only network name such as `ExchangeLab`.
-5. Avoid NAT, bridged, or production host-only networks for this sandbox.
-
-## Notes on Signing
-
-`sign-executable.ps1` creates a self-signed certificate trusted by the current user profile. This is suitable for local lab Authenticode validation. It does not create global Microsoft SmartScreen reputation; public reputation requires a publicly trusted certificate and reputation history.
-
-## Safe Validation Payloads
-
-The automated XSS test sends benign HTML control payloads through SMTP so you can inspect whether OWA and CSP mitigation behavior is blocking active content. The payloads are intended for isolated validation only and do not collect data or contact external systems.
-
-## Documentation Index
-
-Complete documentation for this project:
-
-| Document | Purpose | Audience |
-|----------|---------|----------|
-| **README.md** (this file) | Overview, workflow, and QA commands | Everyone |
-| **[LAB-SETUP-GUIDE.md](LAB-SETUP-GUIDE.md)** | VirtualBox configuration, VM prerequisites, step-by-step lab deployment | Lab administrators, first-time users |
-| **[PREFLIGHT-CHECKLIST.md](PREFLIGHT-CHECKLIST.md)** | Pre-launch verification checklist, environment readiness validation | Before running the GUI |
-| **[CVE-2026-42897-INTEGRATION.md](CVE-2026-42897-INTEGRATION.md)** | Validation tab features, usage workflows, integration details | Security teams, compliance auditors |
-| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Common issues, error messages, solutions, diagnostic commands | Troubleshooting problems |
-| **[QA-REPORT.md](QA-REPORT.md)** | Test results, test coverage, deployment readiness | QA verification, code review |
-| **[CVE-2026-42897_Defensive_Lab_Report.txt](CVE-2026-42897_Defensive_Lab_Report.txt)** | Full defensive lab documentation, vulnerability details, mitigation background | Security research, detailed reference |
-
-### Quick Start Path
-1. Start here -> **README.md** (this file)
-2. -> **[PREFLIGHT-CHECKLIST.md](PREFLIGHT-CHECKLIST.md)** (verify readiness)
-3. -> **[LAB-SETUP-GUIDE.md](LAB-SETUP-GUIDE.md)** (configure lab)
-4. -> Launch GUI and run workflows
-5. -> **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** (if issues arise)
-
-## Improvement Roadmap
-
-These five improvements would make Exchange Lab Manager safer, easier to repeat, and more useful as a serious lab validation tool:
-
-1. **Lab profiles and run manifests**
-   - Save and reload named lab configurations, including static IP settings, domain inputs, Exchange ISO paths, EOMT paths, SMTP targets, and test mailbox details.
-   - Store profiles as JSON so the GUI and future automation entry points can share the same configuration format.
-   - Export a run manifest with each lab attempt so the exact inputs used for a build or mitigation validation can be reviewed later.
-   - *Status: Implemented in the Lab Control & Evidence tab. Profiles, automatic task manifests, and manual manifest exports are written as JSON under `%LOCALAPPDATA%\ExchangeLabManager`.*
-
-2. **Preflight readiness checks**
-   - Add a dedicated readiness step before network, AD DS, Exchange, or mitigation actions run.
-   - Check elevation, Windows Server version, required features, disk space, pending reboot state, network adapter selection, DNS state, and whether the VM appears isolated.
-   - Show blocking failures separately from warnings so users can fix risky setup issues before starting long-running changes.
-   - *Status: Implemented in the Lab Control & Evidence tab. The GUI reports blocking failures separately from warnings and also captures preflight results in full evidence bundles.*
-
-3. **Guided workflow and resumable checkpoints**
-   - Track which lab milestones are complete, such as network configured, AD DS promoted, reboot completed, Exchange AD prepared, Exchange installed, and mitigation checked.
-   - Disable or warn on actions that are out of sequence, while still allowing advanced users to override when they know the lab state is valid.
-   - Persist checkpoint state after each major step so the GUI can resume cleanly after required restarts.
-   - *Status: Implemented. Completed task milestones are persisted to `%LOCALAPPDATA%\ExchangeLabManager\checkpoints\current-checkpoint.json`, and the GUI can save, load, reset, and resume checkpoint status.*
-
-4. **Evidence bundle export**
-   - Let users export a timestamped ZIP containing tab logs, build logs, mitigation status output, selected configuration metadata, validation message details, and tool versions.
-   - Redact secrets and passwords before writing the bundle.
-   - Include enough evidence to compare lab runs and confirm which mitigations or validation checks were actually performed.
-   - *Status: Implemented. The GUI can export a comprehensive timestamped ZIP with metadata, current inputs, checkpoint state, run manifest, preflight results, UI logs, and CVE/Exchange validation snapshots.*
-
-5. **Rollback and cleanup tools**
-   - Add safer cleanup actions for temporary downloads, generated test payload files, local mitigation scripts, and lab-only IIS rewrite/CSP rules.
-   - Provide network restore helpers for reverting adapter IP/DNS settings after testing.
-   - Use strong confirmation prompts and checkpoint reminders before destructive or hard-to-reverse actions such as AD DS promotion and Exchange installation.
-   - *Status: Implemented for safe temporary-artifact preview/cleanup in the GUI. The separate `lab-cleanup-helper.ps1` still provides the stronger full cleanup path with network/IIS reset prompts for isolated lab VMs.*
+### 6. CVE-2026-42897 Validation
+- **Check Exchange Build**: Confirms if the installed build is subject to CVE-2026-42897.
+- **Check EM Service**: Verifies the MSExchangeMitigation service is healthy.
+- **Verify CSP Header**: Directly queries the OWA endpoint to confirm the `script-src-attr 'none'` header is active.
 
 ---
 
-### Documentation Improvements (Completed)
-These items have been addressed through comprehensive documentation:
+## Preflight Check Reference
 
-[done] **LAB-SETUP-GUIDE.md** - Complete VM configuration, prerequisites, and step-by-step lab deployment workflow  
-[done] **PREFLIGHT-CHECKLIST.md** - Pre-launch verification checklist covering all readiness criteria  
-[done] **TROUBLESHOOTING.md** - Comprehensive troubleshooting guide for common issues and error messages  
-[done] **Updated README.md** - Documentation index and quick-start guide
+| Check | Meaning | How to Fix Failure |
+|-------|---------|--------------------|
+| **Administrator privileges** | Required for system changes. | Restart PowerShell or `run-gui.bat` as Administrator. |
+| **Windows Server edition** | Tool is optimized for Server OS. | Run inside the target lab VM, not on your host machine. |
+| **Network isolation** | Verifies no reachability to 8.8.8.8. | Set VirtualBox adapter to "Internal Network". |
+| **Static IP input** | Validates IP format. | Correct the IP address in the System tab. |
+| **Pending reboot** | Checks for CBS/WU reboot markers. | Restart the VM before proceeding with AD or Exchange. |
 
+---
 
+## Lab Profiles and Recovery
 
+### Loading and Saving Profiles
+Profiles are stored in `%LOCALAPPDATA%\ExchangeLabManager\profiles`. You can manually edit these JSON files or use the GUI to update them.
+
+### Dry-Run Mode (Planned)
+While a full dry-run mode is planned, you can currently use the **Cleanup Preview** button to see what temporary files would be removed without actually deleting them.
+
+### Network Recovery
+If network configuration breaks:
+1. Navigate to `%LOCALAPPDATA%\ExchangeLabManager\backups`.
+2. Locate the latest `network-backup-YYYYMMDD-HHMMSS.json`.
+3. Use the `Restore-NetworkConfiguration` function in [ExchangeLabManager.ps1](file:///c:/dev/testing/ExchangeLabManager.ps1) via PowerShell CLI to revert settings.
+
+---
+
+## Evidence Bundles
+The **Export Full Evidence Bundle** button creates a ZIP in `%TEMP%` containing:
+- `00-Bundle-Metadata.json`: System info and timestamps.
+- `01-Current-Inputs.json`: Your GUI input values.
+- `02-Checkpoint.json`: Milestone completion status.
+- `logs/`: All tab logs (System, Exchange, Mitigation, etc.).
+- `cve-validation/`: Specific evidence for CVE mitigation status.
+
+---
+
+## Troubleshooting Common Failures
+
+### 1. Exchange Install Fails
+- **Cause**: Often due to missing prerequisites or insufficient disk space.
+- **Fix**: Review the `ExchangeLog.txt` in the evidence bundle. Ensure all features from [PREFLIGHT-CHECKLIST.md](file:///c:/dev/testing/docs/PREFLIGHT-CHECKLIST.md) are installed.
+
+### 2. EM Service Not Running
+- **Cause**: The MSExchangeMitigation service may fail to start if it can't reach Microsoft for mitigation updates.
+- **Fix**: Ensure the service is set to "Automatic" and check `MSExchangeMitigation-Service.txt` in the evidence bundle.
+
+### 3. EOMT Rule Not Appearing in IIS
+- **Cause**: EOMT may have exited with an error or the IIS configuration hasn't refreshed.
+- **Fix**: Run `iisreset /restart` and re-run the "Check Status" task.
+
+### 4. CSP Header Not Present in OWA Response
+- **Cause**: Outbound rewrite rules are active but the OWA virtual directory isn't being correctly processed.
+- **Fix**: Verify the OWA URL in the GUI matches the internal hostname used in the certificate.
+
+### 5. QA Tests Failing
+- **Cause**: Mismatched paths or environment variables.
+- **Fix**: Ensure you are running [qa-full-tests.ps1](file:///c:/dev/testing/qa-full-tests.ps1) from the root of the repository.

@@ -1,4 +1,4 @@
-﻿# Exchange Lab Manager - Lab Setup Guide
+# Exchange Lab Manager - Lab Setup Guide
 
 This guide walks through the prerequisites and VirtualBox configuration needed before running Exchange Lab Manager.
 
@@ -64,7 +64,7 @@ Disk:        100 GB
    - **Adapter Type**: Intel Pro/1000
 5. Click **OK**
 
-[done] **Result**: Both VMs can reach each other on 192.168.100.0/24 network, but cannot reach the host or external networks.
+[done] **Result**: Both VMs can reach each other on 10.10.10.0/24 network, but cannot reach the host or external networks.
 
 ---
 
@@ -76,17 +76,17 @@ On each VM:
 2. Complete Windows setup
 3. For Domain Controller VM:
    - Set Computer Name: `LabDC` (or similar)
-   - Set Static IP: 192.168.100.10
+   - Set Static IP: 10.10.10.10
 4. For Exchange Server VM:
    - Set Computer Name: `LabEx` (or similar)
-   - Set Static IP: 192.168.100.20
+   - Set Static IP: 10.10.10.30
 
 **Network Configuration Example (for LabEx VM):**
 ```
-IP Address:       192.168.100.20
+IP Address:       10.10.10.30
 Subnet Mask:      255.255.255.0
-Default Gateway:  192.168.100.10
-Preferred DNS:    192.168.100.10 (after DC is promoted)
+Default Gateway:  10.10.10.10
+Preferred DNS:    10.10.10.10 (after DC is promoted)
 ```
 
 ---
@@ -142,8 +142,8 @@ Before running the GUI:
 
 **From Exchange VM, test connectivity to DC VM:**
 ```powershell
-Test-NetConnection -ComputerName 192.168.100.10 -Port 389  # LDAP
-Test-NetConnection -ComputerName 192.168.100.10 -Port 53   # DNS
+Test-NetConnection -ComputerName 10.10.10.10 -Port 389  # LDAP
+Test-NetConnection -ComputerName 10.10.10.10 -Port 53   # DNS
 ```
 
 [done] Both tests should succeed ("TcpTestSucceeded : True")
@@ -191,7 +191,7 @@ Option C - Via File Sharing:
 1. **Boot LabEx VM** and log in
 2. **Set DNS to point to DC:**
    ```powershell
-   Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 192.168.100.10
+   Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 10.10.10.10
    ```
 3. **Navigate to** `C:\Lab\` or mounted ISO location
 4. **Right-click** `ExchangeLabManager.ps1` -> **Run with PowerShell**
@@ -218,12 +218,12 @@ Option C - Via File Sharing:
    - Click **Check Exchange Build** (should show version)
    - Click **Check EM Service** (if EM service is deployed)
    - Click **Check Mitigation State** (should show M2/M2.1.x)
-   - Update **OWA URL** field: `https://lab-ex01.exchange-lab.local/owa` (adjust for your hostname)
+   - Update **OWA URL** field: `https://lab-ex01.exchange-lab.test/owa` (adjust for your hostname)
    - Click **Verify CSP Header** (should show CSP header present)
 
-3. **Automated XSS Test tab** (optional):
+3. **Benign HTML Validation Test tab** (optional):
    - Set **Test Mailbox**: `testuser@mylab.local`
-   - Click **Send Test Email** to verify SMTP functionality
+   - Click **Send HTML Validation Mail** to verify SMTP functionality
 
 ---
 
@@ -234,7 +234,7 @@ Option C - Via File Sharing:
 **Check:**
 ```powershell
 # On LabEx VM
-Test-NetConnection -ComputerName 192.168.100.10
+Test-NetConnection -ComputerName 10.10.10.10
 
 # Should show TcpTestSucceeded: True
 ```
@@ -255,7 +255,7 @@ Test-NetConnection -ComputerName 192.168.100.10
 ```powershell
 # On LabEx VM
 Get-DnsClientServerAddress
-# Should show 192.168.100.10 (or DC's IP)
+# Should show 10.10.10.10 (or DC's IP)
 
 nslookup lab-ex01.exchange-lab.local
 # Should resolve
